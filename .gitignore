@@ -1,0 +1,13 @@
+node_modules
+dist
+.turbo
+.env
+.env.local
+.DS_Store
+coverage
+playwright-report
+test-results
+*.log
+postgres-data
+redis-data
+apps/server/uploads

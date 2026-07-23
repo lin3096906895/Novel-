@@ -1,0 +1,858 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  READER
+  AUTHOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum LoginActivityStatus {
+  SUCCESS
+  FAILURE
+}
+
+enum LoginRiskLevel {
+  NORMAL
+  NOTICE
+  HIGH
+}
+
+enum NovelStatus {
+  DRAFT
+  REVIEWING
+  REJECTED
+  SERIALIZING
+  COMPLETED
+  HIDDEN
+}
+
+enum ChapterStatus {
+  DRAFT
+  REVIEWING
+  SCHEDULED
+  PUBLISHED
+  REJECTED
+}
+
+enum ChapterVersionSource {
+  MANUAL
+  AUTOSAVE
+  SUBMIT
+  RESTORE
+}
+
+enum AuthorCalendarEventType {
+  WRITING
+  REVISION
+  REMINDER
+}
+
+enum NotificationType {
+  REVIEW
+  COMMENT
+  UPDATE
+  SYSTEM
+}
+
+enum EmailVerificationPurpose {
+  REGISTER
+  CHANGE_EMAIL
+}
+
+enum AuthorApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ParagraphReportReason {
+  SPAM
+  ABUSE
+  SPOILER
+  OTHER
+}
+
+enum ParagraphReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+enum ContentReportTargetType {
+  NOVEL
+  CHAPTER
+  AUTHOR
+  USER
+}
+
+enum ContentAppealTargetType {
+  NOVEL
+  CHAPTER
+}
+
+enum ContentAppealStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SensitiveWordScope {
+  ALL
+  NOVEL
+  CHAPTER
+  COMMENT
+}
+
+model User {
+  id                         String                    @id @default(cuid())
+  email                      String                    @unique
+  nickname                   String
+  passwordHash               String
+  emailVerifiedAt            DateTime?
+  role                       UserRole                  @default(READER)
+  status                     UserStatus                @default(ACTIVE)
+  suspendedAt                DateTime?
+  suspensionReason           String?
+  deletionRequestedAt        DateTime?
+  deletionScheduledAt        DateTime?
+  deletionReason             String?
+  deletedAt                  DateTime?
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
+  authorProfile              AuthorProfile?
+  novels                     Novel[]
+  bookshelfItems             BookshelfItem[]
+  readingHistories           ReadingHistory[]
+  chapterReads               ChapterRead[]
+  readingPreference          ReadingPreference?
+  chapterBookmarks           ChapterBookmark[]
+  readingAnnotations         ReadingAnnotation[]
+  paragraphComments          ParagraphComment[]
+  paragraphLikes             ParagraphCommentLike[]
+  paragraphReports           ParagraphCommentReport[]  @relation("ParagraphCommentReporters")
+  reviewedParagraphReports   ParagraphCommentReport[]  @relation("ParagraphCommentReportReviewers")
+  commentReports             CommentReport[]           @relation("CommentReporters")
+  reviewedCommentReports     CommentReport[]           @relation("CommentReportReviewers")
+  submittedContentReports    ContentReport[]           @relation("ContentReporters")
+  reviewedContentReports     ContentReport[]           @relation("ContentReportReviewers")
+  submittedContentAppeals    ContentAppeal[]           @relation("ContentAppealAppellants")
+  reviewedContentAppeals     ContentAppeal[]           @relation("ContentAppealReviewers")
+  comments                   Comment[]
+  reviewLogs                 ReviewLog[]
+  adminAuditLogs             AdminAuditLog[]
+  notifications              Notification[]
+  searchHistories            SearchHistory[]
+  authSessions               AuthSession[]
+  loginActivities            LoginActivity[]
+  createdSensitiveWordRules  SensitiveWordRule[]
+  passwordResetCodes         PasswordResetCode[]
+  emailVerificationCodes     EmailVerificationCode[]
+  authorApplication          AuthorApplication?        @relation("AuthorApplicationApplicant")
+  reviewedAuthorApplications AuthorApplication[]       @relation("AuthorApplicationReviewer")
+  followedAuthors            AuthorFollow[]            @relation("AuthorFollowFollower")
+  authorFollowers            AuthorFollow[]            @relation("AuthorFollowAuthor")
+  commentLikes               CommentLike[]
+  novelRatings               NovelRating[]
+  twoFactorCredential        TwoFactorCredential?
+  twoFactorLoginChallenges   TwoFactorLoginChallenge[]
+
+  @@index([status, createdAt])
+  @@index([deletionScheduledAt, deletedAt])
+}
+
+model AuthorProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  penName   String
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model AuthorFollow {
+  id         String   @id @default(cuid())
+  followerId String
+  authorId   String
+  createdAt  DateTime @default(now())
+  follower   User     @relation("AuthorFollowFollower", fields: [followerId], references: [id], onDelete: Cascade)
+  author     User     @relation("AuthorFollowAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, authorId])
+  @@index([authorId, createdAt])
+  @@index([followerId, createdAt])
+}
+
+model AuthorApplication {
+  id           String                  @id @default(cuid())
+  userId       String                  @unique
+  penName      String
+  bio          String?
+  statement    String
+  status       AuthorApplicationStatus @default(PENDING)
+  reviewReason String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  user         User                    @relation("AuthorApplicationApplicant", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy   User?                   @relation("AuthorApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([reviewedById, reviewedAt])
+}
+
+model ContentChannel {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder, name])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  channel   String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  novels    Novel[]
+
+  @@index([channel, sortOrder])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  novels    Novel[]  @relation("NovelTags")
+
+  @@index([sortOrder, name])
+}
+
+model Novel {
+  id             String                @id @default(cuid())
+  title          String
+  summary        String
+  coverUrl       String?
+  status         NovelStatus           @default(DRAFT)
+  wordCount      Int                   @default(0)
+  authorId       String
+  categoryId     String
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  author         User                  @relation(fields: [authorId], references: [id])
+  category       Category              @relation(fields: [categoryId], references: [id])
+  tags           Tag[]                 @relation("NovelTags")
+  volumes        NovelVolume[]
+  chapters       Chapter[]
+  announcements  NovelAnnouncement[]
+  calendarEvents AuthorCalendarEvent[]
+  bookshelf      BookshelfItem[]
+  histories      ReadingHistory[]
+  comments       Comment[]
+  ratings        NovelRating[]
+  recommendItem  RecommendItem[]
+
+  @@index([status, updatedAt])
+  @@index([categoryId, status])
+}
+
+model NovelAnnouncement {
+  id          String    @id @default(cuid())
+  novelId     String
+  title       String
+  content     String
+  isPinned    Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  novel       Novel     @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@index([novelId, isPinned, publishedAt])
+  @@index([novelId, updatedAt])
+}
+
+model AuthorCalendarEvent {
+  id          String                  @id @default(cuid())
+  novelId     String
+  title       String
+  note        String?
+  eventAt     DateTime
+  type        AuthorCalendarEventType @default(WRITING)
+  isCompleted Boolean                 @default(false)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  novel       Novel                   @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@index([novelId, eventAt])
+  @@index([eventAt, isCompleted])
+}
+
+model NovelVolume {
+  id          String    @id @default(cuid())
+  novelId     String
+  title       String
+  description String?
+  orderIndex  Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  novel       Novel     @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  chapters    Chapter[]
+
+  @@unique([novelId, orderIndex])
+  @@index([novelId, orderIndex])
+}
+
+model Chapter {
+  id                String              @id @default(cuid())
+  novelId           String
+  volumeId          String?
+  title             String
+  content           String
+  orderIndex        Int
+  status            ChapterStatus       @default(DRAFT)
+  wordCount         Int                 @default(0)
+  scheduledAt       DateTime?
+  publishedAt       DateTime?
+  deletedAt         DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  novel             Novel               @relation(fields: [novelId], references: [id])
+  volume            NovelVolume?        @relation(fields: [volumeId], references: [id], onDelete: SetNull)
+  histories         ReadingHistory[]
+  readers           ChapterRead[]
+  bookmarks         ChapterBookmark[]
+  comments          Comment[]
+  annotations       ReadingAnnotation[]
+  paragraphComments ParagraphComment[]
+  versions          ChapterVersion[]
+
+  @@index([novelId, orderIndex])
+  @@index([novelId, status, orderIndex])
+  @@index([novelId, deletedAt])
+  @@index([status, scheduledAt])
+  @@index([volumeId, orderIndex])
+}
+
+model ChapterVersion {
+  id          String               @id @default(cuid())
+  chapterId   String
+  title       String
+  content     String
+  volumeId    String?
+  scheduledAt DateTime?
+  wordCount   Int
+  source      ChapterVersionSource
+  createdAt   DateTime             @default(now())
+  chapter     Chapter              @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([chapterId, createdAt])
+}
+
+model BookshelfItem {
+  id             String   @id @default(cuid())
+  userId         String
+  novelId        String
+  notifyOnUpdate Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id])
+  novel          Novel    @relation(fields: [novelId], references: [id])
+
+  @@unique([userId, novelId])
+}
+
+model ReadingHistory {
+  id             String   @id @default(cuid())
+  userId         String
+  novelId        String
+  chapterId      String
+  progress       Int      @default(0)
+  readingSeconds Int      @default(0)
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id])
+  novel          Novel    @relation(fields: [novelId], references: [id])
+  chapter        Chapter  @relation(fields: [chapterId], references: [id])
+
+  @@unique([userId, novelId])
+}
+
+model ChapterRead {
+  id          String   @id @default(cuid())
+  userId      String
+  chapterId   String
+  completedAt DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@index([userId, completedAt])
+  @@index([chapterId, completedAt])
+}
+
+model ReadingPreference {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  fontSize     Int      @default(18)
+  theme        String   @default("LIGHT")
+  lineHeight   Float    @default(1.9)
+  contentWidth Int      @default(760)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ChapterBookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  chapterId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@index([userId, createdAt])
+}
+
+model ReadingAnnotation {
+  id             String   @id @default(cuid())
+  userId         String
+  chapterId      String
+  paragraphIndex Int
+  startOffset    Int
+  endOffset      Int
+  selectedText   String
+  note           String?
+  color          String   @default("YELLOW")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter        Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([userId, chapterId, paragraphIndex])
+  @@index([userId, updatedAt])
+}
+
+model ParagraphComment {
+  id             String                   @id @default(cuid())
+  userId         String
+  chapterId      String
+  paragraphIndex Int
+  parentId       String?
+  content        String
+  isDeleted      Boolean                  @default(false)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter        Chapter                  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  parent         ParagraphComment?        @relation("ParagraphCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies        ParagraphComment[]       @relation("ParagraphCommentReplies")
+  likes          ParagraphCommentLike[]
+  reports        ParagraphCommentReport[]
+
+  @@index([chapterId, paragraphIndex, parentId, createdAt])
+  @@index([parentId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model ParagraphCommentLike {
+  id        String           @id @default(cuid())
+  userId    String
+  commentId String
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment   ParagraphComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@index([commentId, createdAt])
+}
+
+model ParagraphCommentReport {
+  id         String                @id @default(cuid())
+  reporterId String
+  commentId  String
+  reason     ParagraphReportReason
+  detail     String?
+  status     ParagraphReportStatus @default(PENDING)
+  reviewerId String?
+  resolution String?
+  resolvedAt DateTime?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+  reporter   User                  @relation("ParagraphCommentReporters", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewer   User?                 @relation("ParagraphCommentReportReviewers", fields: [reviewerId], references: [id], onDelete: SetNull)
+  comment    ParagraphComment      @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([reporterId, commentId])
+  @@index([status, createdAt])
+  @@index([commentId, status])
+}
+
+model Comment {
+  id        String          @id @default(cuid())
+  userId    String
+  novelId   String
+  chapterId String?
+  parentId  String?
+  content   String
+  isDeleted Boolean         @default(false)
+  createdAt DateTime        @default(now())
+  user      User            @relation(fields: [userId], references: [id])
+  novel     Novel           @relation(fields: [novelId], references: [id])
+  chapter   Chapter?        @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  parent    Comment?        @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]       @relation("CommentReplies")
+  likes     CommentLike[]
+  reports   CommentReport[]
+
+  @@index([chapterId, createdAt])
+  @@index([novelId, chapterId, parentId, createdAt])
+  @@index([parentId, createdAt])
+}
+
+model CommentLike {
+  id        String   @id @default(cuid())
+  userId    String
+  commentId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@index([commentId, createdAt])
+}
+
+model NovelRating {
+  id        String   @id @default(cuid())
+  userId    String
+  novelId   String
+  score     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel     Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, novelId])
+  @@index([novelId, score])
+  @@index([userId, updatedAt])
+}
+
+model CommentReport {
+  id                    String                @id @default(cuid())
+  reporterId            String
+  commentId             String?
+  reason                ParagraphReportReason
+  detail                String?
+  status                ParagraphReportStatus @default(PENDING)
+  reviewerId            String?
+  resolution            String?
+  resolvedAt            DateTime?
+  contentSnapshot       String
+  commentAuthorId       String
+  commentAuthorNickname String
+  commentAuthorEmail    String
+  novelId               String
+  novelTitle            String
+  chapterId             String?
+  chapterTitle          String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  reporter              User                  @relation("CommentReporters", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewer              User?                 @relation("CommentReportReviewers", fields: [reviewerId], references: [id], onDelete: SetNull)
+  comment               Comment?              @relation(fields: [commentId], references: [id], onDelete: SetNull)
+
+  @@unique([reporterId, commentId])
+  @@index([status, createdAt])
+  @@index([commentId, status])
+  @@index([chapterId, status])
+}
+
+model ContentReport {
+  id             String                  @id @default(cuid())
+  reporterId     String
+  targetType     ContentReportTargetType
+  targetId       String
+  targetTitle    String
+  targetOwnerId  String?
+  targetSnapshot Json
+  reason         ParagraphReportReason
+  detail         String?
+  status         ParagraphReportStatus   @default(PENDING)
+  reviewerId     String?
+  resolution     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  reporter       User                    @relation("ContentReporters", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewer       User?                   @relation("ContentReportReviewers", fields: [reviewerId], references: [id], onDelete: SetNull)
+  appeals        ContentAppeal[]
+
+  @@unique([reporterId, targetType, targetId])
+  @@index([status, createdAt])
+  @@index([targetType, targetId, status])
+  @@index([targetOwnerId, status])
+}
+
+model ContentAppeal {
+  id             String                  @id @default(cuid())
+  appellantId    String
+  reviewerId     String?
+  targetType     ContentAppealTargetType
+  targetId       String
+  targetTitle    String
+  sourceReportId String?
+  sourceAuditId  String                  @unique
+  reason         String
+  status         ContentAppealStatus     @default(PENDING)
+  resolution     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  appellant      User                    @relation("ContentAppealAppellants", fields: [appellantId], references: [id], onDelete: Cascade)
+  reviewer       User?                   @relation("ContentAppealReviewers", fields: [reviewerId], references: [id], onDelete: SetNull)
+  sourceReport   ContentReport?          @relation(fields: [sourceReportId], references: [id], onDelete: SetNull)
+  sourceAudit    AdminAuditLog           @relation("ContentAppealSourceAudit", fields: [sourceAuditId], references: [id])
+
+  @@index([appellantId, createdAt])
+  @@index([status, createdAt])
+  @@index([targetType, targetId, status])
+}
+
+model RecommendSlot {
+  id        String          @id @default(cuid())
+  code      String          @unique
+  name      String
+  items     RecommendItem[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
+model RecommendItem {
+  id        String        @id @default(cuid())
+  slotId    String
+  novelId   String
+  sortOrder Int           @default(0)
+  slot      RecommendSlot @relation(fields: [slotId], references: [id])
+  novel     Novel         @relation(fields: [novelId], references: [id])
+
+  @@unique([slotId, novelId])
+}
+
+model ReviewLog {
+  id         String   @id @default(cuid())
+  targetType String
+  targetId   String
+  action     String
+  reason     String?
+  reviewerId String
+  createdAt  DateTime @default(now())
+  reviewer   User     @relation(fields: [reviewerId], references: [id])
+
+  @@index([targetType, targetId])
+  @@index([reviewerId, createdAt])
+}
+
+model AdminAuditLog {
+  id             String          @id @default(cuid())
+  actorId        String
+  action         String
+  targetType     String
+  targetId       String
+  summary        String
+  before         Json?
+  after          Json?
+  createdAt      DateTime        @default(now())
+  actor          User            @relation(fields: [actorId], references: [id])
+  contentAppeals ContentAppeal[] @relation("ContentAppealSourceAudit")
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+}
+
+model SensitiveWordRule {
+  id             String             @id @default(cuid())
+  term           String
+  normalizedTerm String
+  scope          SensitiveWordScope @default(ALL)
+  note           String?
+  isEnabled      Boolean            @default(true)
+  createdById    String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  createdBy      User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([normalizedTerm, scope])
+  @@index([scope, isEnabled, updatedAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  content   String
+  link      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead, createdAt])
+}
+
+model SearchHistory {
+  id             String   @id @default(cuid())
+  userId         String
+  keyword        String
+  searchCount    Int      @default(1)
+  lastSearchedAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, keyword])
+  @@index([userId, lastSearchedAt])
+}
+
+model SearchTerm {
+  id             String   @id @default(cuid())
+  keyword        String   @unique
+  searchCount    Int      @default(1)
+  lastSearchedAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([searchCount, lastSearchedAt])
+}
+
+model AuthSession {
+  id               String    @id @default(cuid())
+  userId           String
+  refreshTokenHash String    @unique
+  deviceName       String
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime
+  lastUsedAt       DateTime  @default(now())
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
+}
+
+model LoginActivity {
+  id            String              @id @default(cuid())
+  userId        String?
+  email         String
+  status        LoginActivityStatus
+  riskLevel     LoginRiskLevel      @default(NORMAL)
+  failureReason String?
+  sessionId     String?
+  deviceName    String
+  userAgent     String?
+  ipAddress     String?
+  occurredAt    DateTime            @default(now())
+  user          User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
+  @@index([email, occurredAt])
+  @@index([status, occurredAt])
+}
+
+model TwoFactorCredential {
+  id              String                  @id @default(cuid())
+  userId          String                  @unique
+  secretEncrypted String
+  enabledAt       DateTime?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  user            User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recoveryCodes   TwoFactorRecoveryCode[]
+
+  @@index([enabledAt])
+}
+
+model TwoFactorRecoveryCode {
+  id           String              @id @default(cuid())
+  credentialId String
+  codeHash     String
+  usedAt       DateTime?
+  createdAt    DateTime            @default(now())
+  credential   TwoFactorCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@unique([credentialId, codeHash])
+  @@index([credentialId, usedAt])
+}
+
+model TwoFactorLoginChallenge {
+  id           String    @id @default(cuid())
+  userId       String
+  tokenHash    String    @unique
+  attemptCount Int       @default(0)
+  deviceName   String
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
+
+model PasswordResetCode {
+  id           String    @id @default(cuid())
+  userId       String
+  codeHash     String
+  attemptCount Int       @default(0)
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  requestedIp  String?
+  userAgent    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, consumedAt, expiresAt])
+  @@index([createdAt])
+}
+
+model EmailVerificationCode {
+  id           String                   @id @default(cuid())
+  email        String
+  purpose      EmailVerificationPurpose
+  userId       String?
+  codeHash     String
+  attemptCount Int                      @default(0)
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  requestedIp  String?
+  userAgent    String?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  user         User?                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, purpose, consumedAt, expiresAt])
+  @@index([userId, purpose, createdAt])
+}

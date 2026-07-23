@@ -1,0 +1,22 @@
+import { Type } from 'class-transformer';
+import { IsInt, IsString, Max, Min } from 'class-validator';
+
+export class SaveReadingSessionDto {
+  @IsString()
+  novelId!: string;
+
+  @IsString()
+  chapterId!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  progress!: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(300)
+  seconds!: number;
+}

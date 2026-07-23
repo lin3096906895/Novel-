@@ -1,0 +1,33 @@
+{
+  "name": "novel-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Original novel reading platform monorepo.",
+  "scripts": {
+    "dev": "corepack pnpm -r --parallel dev",
+    "build": "corepack pnpm -r build",
+    "lint": "corepack pnpm -r lint && corepack pnpm lint:e2e",
+    "lint:e2e": "corepack pnpm exec tsc -p tsconfig.e2e.json --noEmit",
+    "test": "corepack pnpm --filter @novel/server test",
+    "test:functional": "corepack pnpm --filter @novel/server test:functional",
+    "test:e2e": "corepack pnpm exec playwright test",
+    "format": "prettier --write .",
+    "db:up": "docker compose up -d postgres",
+    "infra:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:studio": "corepack pnpm --filter @novel/server prisma:studio",
+    "prisma:generate": "corepack pnpm --filter @novel/server prisma:generate",
+    "prisma:migrate": "corepack pnpm --dir apps/server exec prisma migrate dev"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "24.10.1",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@11.7.0"
+}
