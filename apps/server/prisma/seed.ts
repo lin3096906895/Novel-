@@ -128,12 +128,14 @@ async function main() {
 
   const chapters = [
     {
+      id: 'seed_chapter_star_pact_1',
       orderIndex: 1,
       title: '第一章 归航信号',
       content:
         '凌晨三点，月面中继站收到一段来自深空的旧式脉冲。档案修复师林泊站在监听台前，听见了三百年前失踪舰队的识别码。那串数字被反复播放，像一封迟到太久的家书，也像某种警告。',
     },
     {
+      id: 'seed_chapter_star_pact_2',
       orderIndex: 2,
       title: '第二章 被删除的坐标',
       content:
@@ -144,13 +146,11 @@ async function main() {
   for (const chapter of chapters) {
     await prisma.chapter.upsert({
       where: {
-        novelId_orderIndex: {
-          novelId: novel.id,
-          orderIndex: chapter.orderIndex,
-        },
+        id: chapter.id,
       },
       update: { volumeId: mainVolume.id },
       create: {
+        id: chapter.id,
         novelId: novel.id,
         volumeId: mainVolume.id,
         title: chapter.title,
@@ -226,13 +226,11 @@ async function main() {
 
   await prisma.chapter.upsert({
     where: {
-      novelId_orderIndex: {
-        novelId: pendingNovel.id,
-        orderIndex: 1,
-      },
+      id: 'seed_chapter_pending_review_1',
     },
     update: { volumeId: pendingVolume.id },
     create: {
+      id: 'seed_chapter_pending_review_1',
       novelId: pendingNovel.id,
       volumeId: pendingVolume.id,
       title: '第一章 旧站台',
