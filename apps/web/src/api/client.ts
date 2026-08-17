@@ -617,6 +617,21 @@ export const api = {
     });
   },
 
+  authorAiAssist(
+    token: string,
+    chapterId: string,
+    payload: { action: import('./types').AuthorAiAction; title: string; content: string },
+  ) {
+    return request<import('./types').AuthorAiAssistanceResult>(
+      `/author/chapters/${chapterId}/ai-assistance`,
+      {
+        method: 'POST',
+        token,
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
   deleteAuthorChapter(token: string, chapterId: string) {
     return request<{
       deletedId: string;

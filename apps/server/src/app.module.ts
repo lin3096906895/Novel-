@@ -25,6 +25,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: ['.env', '../../.env'],
     }),
     PrismaModule,
     PublicationModule,

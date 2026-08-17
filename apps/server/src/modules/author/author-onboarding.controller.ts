@@ -37,7 +37,7 @@ export class AuthorOnboardingController {
 
   @Patch('profile')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.AUTHOR, UserRole.ADMIN)
+  @Roles(UserRole.AUTHOR)
   async updateProfile(
     @CurrentUser() user: RequestUser,
     @Body() dto: UpdateAuthorProfileDto,

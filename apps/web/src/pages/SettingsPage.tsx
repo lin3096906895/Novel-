@@ -38,9 +38,28 @@ import type {
 import { useAuth } from '../auth/AuthContext';
 import { formatReadingDuration } from '../utils/format';
 
+type SettingsWorkspaceView = 'account' | 'reading' | 'data' | 'local';
+type AccountSettingsView = 'profile' | 'security' | 'devices' | 'activity';
+
+const settingsWorkspaceLabels: Record<SettingsWorkspaceView, string> = {
+  account: '\u8d26\u6237',
+  reading: '\u9605\u8bfb',
+  data: '\u6570\u636e\u4e0e\u6ce8\u9500',
+  local: '\u672c\u5730\u73af\u5883',
+};
+
+const accountSettingsLabels: Record<AccountSettingsView, string> = {
+  profile: '\u8d44\u6599',
+  security: '\u5b89\u5168',
+  devices: '\u8bbe\u5907',
+  activity: '\u767b\u5f55\u8bb0\u5f55',
+};
+
 export function SettingsPage() {
   const { user, token, isReady, isAuthenticated, logout, updateProfile, changeEmail } = useAuth();
   const [nickname, setNickname] = useState('');
+  const [workspaceView, setWorkspaceView] = useState<SettingsWorkspaceView>('account');
+  const [accountView, setAccountView] = useState<AccountSettingsView>('profile');
   const [comments, setComments] = useState<PaginatedMyComments>();
   const [paragraphComments, setParagraphComments] = useState<PaginatedMyParagraphComments>();
   const [readingHistories, setReadingHistories] = useState<ReadingHistory[]>([]);
@@ -876,7 +895,38 @@ export function SettingsPage() {
         </p>
       )}
 
-      <section className="panel settings-panel">
+      <nav className="settings-workspace-tabs" aria-label="\u8bbe\u7f6e\u5de5\u4f5c\u533a">
+        {(isAuthenticated
+          ? (Object.keys(settingsWorkspaceLabels) as SettingsWorkspaceView[])
+          : (['account', 'local'] as SettingsWorkspaceView[])
+        ).map((view) => (
+          <button
+            aria-current={workspaceView === view ? 'page' : undefined}
+            className={workspaceView === view ? 'active' : ''}
+            key={view}
+            type="button"
+            onClick={() => setWorkspaceView(view)}
+          >
+            {settingsWorkspaceLabels[view]}
+          </button>
+        ))}
+      </nav>
+
+      {isAuthenticated && workspaceView === 'account' && <nav className="settings-account-tabs" aria-label="\u8d26\u6237\u8bbe\u7f6e">
+        {(Object.keys(accountSettingsLabels) as AccountSettingsView[]).map((view) => (
+          <button
+            aria-current={accountView === view ? 'page' : undefined}
+            className={accountView === view ? 'active' : ''}
+            key={view}
+            type="button"
+            onClick={() => setAccountView(view)}
+          >
+            {accountSettingsLabels[view]}
+          </button>
+        ))}
+      </nav>}
+
+      {workspaceView === 'account' && accountView === 'profile' && <section className="panel settings-panel">
         <h2>个人资料</h2>
         {isAuthenticated && user ? (
           <form className="profile-settings-form" onSubmit={saveProfile}>
@@ -924,16 +974,28 @@ export function SettingsPage() {
             </NavLink>
           </div>
         )}
-      </section>
+      </section>}
 
-      {isAuthenticated && (
+      {isAuthenticated &&
+        (workspaceView === 'data' ||
+          (workspaceView === 'account' && (accountView === 'security' || accountView === 'devices'))) && (
         <section className="panel settings-panel">
           <div className="section-title">
-            <h2>账号安全</h2>
-            <span className="muted">访问令牌自动续期</span>
+            <h2>
+              {workspaceView === 'data'
+                ? '\u4e2a\u4eba\u6570\u636e\u4e0e\u8d26\u6237\u6ce8\u9500'
+                : accountView === 'devices'
+                  ? '\u767b\u5f55\u8bbe\u5907'
+                  : '\u8d26\u53f7\u5b89\u5168'}
+            </h2>
+            <span className="muted">
+              {workspaceView === 'data'
+                ? '\u9ad8\u98ce\u9669\u64cd\u4f5c\u9700\u8981\u5f53\u524d\u5bc6\u7801\u9a8c\u8bc1'
+                : '\u8bbf\u95ee\u4ee4\u724c\u81ea\u52a8\u7eed\u671f'}
+            </span>
           </div>
-          <div className="account-security-grid">
-            <div className="security-forms-column">
+          {workspaceView === 'account' && <div className={`account-security-grid account-security-grid-${accountView}`}>
+            {accountView === 'security' && <div className="security-forms-column">
               <section className="security-settings-form two-factor-settings">
                 <div className="security-section-heading">
                   <ShieldCheck size={18} aria-hidden />
@@ -1227,9 +1289,9 @@ export function SettingsPage() {
                   {isChangingPassword ? '修改中...' : '修改密码'}
                 </button>
               </form>
-            </div>
+            </div>}
 
-            <section className="security-session-section" aria-label="登录设备">
+            {accountView === 'devices' && <section className="security-session-section" aria-label="登录设备">
               <div className="security-section-heading">
                 <MonitorSmartphone size={18} aria-hidden />
                 <h3>登录设备</h3>
@@ -1279,10 +1341,10 @@ export function SettingsPage() {
                   {isRevokingOtherSessions ? '处理中...' : '退出其他设备'}
                 </button>
               )}
-            </section>
-          </div>
+            </section>}
+          </div>}
 
-          <section className="data-export-section" aria-label="个人数据导出">
+          {workspaceView === 'data' && <section className="data-export-section" aria-label="个人数据导出">
             <div className="security-section-heading">
               <Download size={18} aria-hidden />
               <h3>个人数据导出</h3>
@@ -1332,9 +1394,9 @@ export function SettingsPage() {
                 </button>
               </div>
             </div>
-          </section>
+          </section>}
 
-          <section className="account-deletion-section" aria-label="账号注销">
+          {workspaceView === 'data' && <section className="account-deletion-section" aria-label="账号注销">
             <div className="security-section-heading">
               <Trash2 size={18} aria-hidden />
               <h3>账号注销</h3>
@@ -1464,11 +1526,11 @@ export function SettingsPage() {
                 </div>
               </div>
             )}
-          </section>
+          </section>}
         </section>
       )}
 
-      {isAuthenticated && (
+      {isAuthenticated && workspaceView === 'account' && accountView === 'activity' && (
         <section className="panel settings-panel login-activity-panel">
           <div className="section-title">
             <div>
@@ -1545,7 +1607,7 @@ export function SettingsPage() {
         </section>
       )}
 
-      {isAuthenticated && (
+      {isAuthenticated && workspaceView === 'reading' && (
         <section className="panel settings-panel">
           <div className="section-title">
             <h2>阅读统计</h2>
@@ -1592,7 +1654,7 @@ export function SettingsPage() {
         </section>
       )}
 
-      {isAuthenticated && (
+      {isAuthenticated && workspaceView === 'reading' && (
         <section className="panel settings-panel">
           <div className="section-title">
             <h2>阅读历史</h2>
@@ -1641,7 +1703,7 @@ export function SettingsPage() {
         </section>
       )}
 
-      {isAuthenticated && (
+      {isAuthenticated && workspaceView === 'reading' && (
         <section className="panel settings-panel">
           <div className="section-title">
             <h2>我的批注</h2>
@@ -1680,7 +1742,7 @@ export function SettingsPage() {
         </section>
       )}
 
-      {isAuthenticated && (
+      {isAuthenticated && workspaceView === 'reading' && (
         <section className="panel settings-panel">
           <div className="section-title">
             <h2>我的段评</h2>
@@ -1746,7 +1808,7 @@ export function SettingsPage() {
         </section>
       )}
 
-      {isAuthenticated && (
+      {isAuthenticated && workspaceView === 'reading' && (
         <section className="panel settings-panel">
           <div className="section-title">
             <h2>我的评论</h2>
@@ -1815,7 +1877,7 @@ export function SettingsPage() {
         </section>
       )}
 
-      <section className="panel settings-panel">
+      {workspaceView === 'local' && <section className="panel settings-panel">
         <h2>本地环境</h2>
         <dl className="settings-list">
           <div>
@@ -1831,7 +1893,7 @@ export function SettingsPage() {
             <dd>http://localhost:5301</dd>
           </div>
         </dl>
-      </section>
+      </section>}
     </section>
   );
 }

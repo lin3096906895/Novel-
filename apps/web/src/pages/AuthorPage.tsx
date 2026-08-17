@@ -30,12 +30,15 @@ import {
   RotateCcw,
   Save,
   Send,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react';
 import { api } from '../api/client';
 import type {
   AuthorApplication,
+  AuthorAiAction,
+  AuthorAiAssistanceResult,
   AuthorCalendar,
   AuthorCalendarEvent,
   AuthorCalendarEventType,
@@ -54,7 +57,7 @@ import { useAuth } from '../auth/AuthContext';
 import { NovelCover } from '../components/NovelCover';
 import { ContentAppealsPanel } from '../components/ContentAppealsPanel';
 
-const writerRoles = new Set(['AUTHOR', 'ADMIN']);
+const writerRoles = new Set(['AUTHOR']);
 const coverTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 type NovelPayload = {
@@ -88,6 +91,21 @@ type CalendarPlanPayload = {
 
 type AutoSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 type DashboardTrendMetric = 'bookshelfAdds' | 'comments' | 'publishedWords';
+type AuthorWorkspaceView = 'overview' | 'works' | 'planning' | 'profile';
+type AuthorWorkView = 'novel' | 'catalog' | 'chapter';
+
+const authorWorkspaceLabels: Record<AuthorWorkspaceView, string> = {
+  overview: '\u6982\u89c8',
+  works: '\u4f5c\u54c1',
+  planning: '\u8ba1\u5212',
+  profile: '\u8d44\u6599',
+};
+
+const authorWorkLabels: Record<AuthorWorkView, string> = {
+  novel: '\u4f5c\u54c1\u4fe1\u606f',
+  catalog: '\u76ee\u5f55\u7ba1\u7406',
+  chapter: '\u7ae0\u8282\u7f16\u8f91',
+};
 
 export function AuthorPage() {
   const { token, user, isReady, isAuthenticated, reloadUser } = useAuth();
@@ -103,6 +121,9 @@ export function AuthorPage() {
   const [isOnboardingLoading, setIsOnboardingLoading] = useState(false);
   const [selectedNovelId, setSelectedNovelId] = useState('');
   const [selectedChapterId, setSelectedChapterId] = useState('');
+  const [workspaceView, setWorkspaceView] = useState<AuthorWorkspaceView>('overview');
+  const [workView, setWorkView] = useState<AuthorWorkView>('novel');
+  const [isCreateNovelOpen, setIsCreateNovelOpen] = useState(false);
   const [chapterVersions, setChapterVersions] = useState<ChapterVersion[]>([]);
   const [deletedChapters, setDeletedChapters] = useState<DeletedChapter[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -317,6 +338,16 @@ export function AuthorPage() {
     );
   }
 
+  if (user?.role === 'ADMIN') {
+    return (
+      <AuthorState title="管理员请使用管理后台">
+        <a className="primary-link" href={import.meta.env.VITE_ADMIN_APP_URL ?? 'http://localhost:5301'}>
+          进入管理后台
+        </a>
+      </AuthorState>
+    );
+  }
+
   if (!canWrite) {
     return (
       <AuthorOnboardingView
@@ -355,16 +386,30 @@ export function AuthorPage() {
         </div>
       )}
 
-      <AuthorProfilePanel
+      <nav className="author-workspace-tabs" aria-label="\u4f5c\u8005\u5de5\u4f5c\u533a">
+        {(Object.keys(authorWorkspaceLabels) as AuthorWorkspaceView[]).map((view) => (
+          <button
+            aria-current={workspaceView === view ? 'page' : undefined}
+            className={workspaceView === view ? 'active' : ''}
+            key={view}
+            type="button"
+            onClick={() => setWorkspaceView(view)}
+          >
+            {authorWorkspaceLabels[view]}
+          </button>
+        ))}
+      </nav>
+
+      {workspaceView === 'profile' && <AuthorProfilePanel
         disabled={isOnboardingLoading}
         profile={onboarding?.profile}
         fallbackPenName={user?.nickname ?? ''}
         onSave={saveAuthorProfile}
-      />
+      />}
 
-      {token && <ContentAppealsPanel token={token} />}
+      {workspaceView === 'overview' && token && <ContentAppealsPanel token={token} />}
 
-      <AuthorDashboardPanel
+      {workspaceView === 'overview' && <AuthorDashboardPanel
         dashboard={dashboard}
         days={dashboardDays}
         isLoading={isLoading || isDashboardLoading}
@@ -376,9 +421,9 @@ export function AuthorPage() {
         }}
         onSelectNovel={setSelectedNovelId}
         selectedNovelId={selectedNovelId}
-      />
+      />}
 
-      <AuthorCalendarPanel
+      {workspaceView === 'planning' && <AuthorCalendarPanel
         calendar={calendar}
         disabled={isUpdatingCalendar || !token}
         isLoading={isLoading || isCalendarLoading}
@@ -445,17 +490,35 @@ export function AuthorPage() {
             setIsUpdatingCalendar(false);
           }
         }}
-      />
+      />}
 
-      <section className="author-grid">
+      {workspaceView === 'works' && <section className="author-workspace-layout">
+        <aside className="author-workspace-sidebar">
         <NovelListPanel
           isLoading={isLoading}
           novels={novels}
           selectedNovelId={selectedNovelId}
-          onSelect={setSelectedNovelId}
+          onSelect={(novelId) => {
+            setSelectedNovelId(novelId);
+            setIsCreateNovelOpen(false);
+          }}
         />
+        <button
+          className="primary-link author-create-novel-button"
+          type="button"
+          onClick={() => {
+            setIsCreateNovelOpen(true);
+            setWorkView('novel');
+          }}
+        >
+          <BookPlus size={16} aria-hidden />
+          {'\u65b0\u5efa\u4f5c\u54c1'}
+        </button>
+        </aside>
 
-        <CreateNovelPanel
+        <div className="author-workspace-main">
+
+        {isCreateNovelOpen && <CreateNovelPanel
           categories={categories}
           disabled={isSubmittingNovel || !token}
           token={token}
@@ -472,6 +535,7 @@ export function AuthorPage() {
               setMessage('作品草稿已保存');
               await loadData(token);
               setSelectedNovelId(novel.id);
+              setIsCreateNovelOpen(false);
             } catch (err) {
               setError(err instanceof Error ? err.message : '保存失败');
               throw err;
@@ -492,6 +556,7 @@ export function AuthorPage() {
               setMessage('作品已提交审核');
               await loadData(token);
               setSelectedNovelId(novel.id);
+              setIsCreateNovelOpen(false);
             } catch (err) {
               setError(err instanceof Error ? err.message : '提交失败');
               throw err;
@@ -499,8 +564,26 @@ export function AuthorPage() {
               setIsSubmittingNovel(false);
             }
           }}
-        />
+        />}
 
+        {!isCreateNovelOpen && selectedNovel && <>
+          <nav className="author-work-tabs" aria-label="\u4f5c\u54c1\u7ba1\u7406\u5de5\u5177">
+            {(Object.keys(authorWorkLabels) as AuthorWorkView[]).map((view) => (
+              <button
+                aria-current={workView === view ? 'page' : undefined}
+                className={workView === view ? 'active' : ''}
+                key={view}
+                type="button"
+                onClick={() => setWorkView(view)}
+              >
+                {authorWorkLabels[view]}
+              </button>
+            ))}
+          </nav>
+          <p className="author-workspace-selection">{selectedNovel.title}</p>
+        </>}
+
+        {!isCreateNovelOpen && selectedNovel && workView === 'novel' && <>
         <EditNovelPanel
           categories={categories}
           disabled={isSubmittingEdit || isUpdatingNovelLifecycle || !token}
@@ -648,7 +731,9 @@ export function AuthorPage() {
             }
           }}
         />
+        </>}
 
+        {!isCreateNovelOpen && selectedNovel && workView === 'catalog' && <>
         <VolumeManagerPanel
           disabled={isUpdatingVolumes || !token}
           novel={selectedNovel}
@@ -854,10 +939,13 @@ export function AuthorPage() {
             }
           }}
         />
+        </>}
 
+        {!isCreateNovelOpen && selectedNovel && selectedChapter && workView === 'chapter' && <>
         <EditChapterPanel
           chapter={selectedChapter}
           volumes={selectedNovel?.volumes ?? []}
+          token={token}
           disabled={isSubmittingChapterEdit || !token}
           onSaveDraft={async (chapterId, payload, saveSource) => {
             if (!token) {
@@ -955,8 +1043,9 @@ export function AuthorPage() {
             }
           }}
         />
+        </>}
 
-        <CreateChapterPanel
+        {!isCreateNovelOpen && selectedNovel && workView === 'chapter' && <CreateChapterPanel
           disabled={isSubmittingChapter || !token || novels.length === 0}
           novel={selectedNovel}
           volumes={selectedNovel?.volumes ?? []}
@@ -1006,7 +1095,16 @@ export function AuthorPage() {
             }
           }}
         />
-      </section>
+        }
+
+        {!isCreateNovelOpen && !selectedNovel && !isLoading && (
+          <div className="author-workspace-empty">
+            <h2>{'\u4ece\u65b0\u5efa\u4f5c\u54c1\u5f00\u59cb'}</h2>
+            <p>{'\u9009\u62e9\u5de6\u4fa7\u5df2\u6709\u4f5c\u54c1\uff0c\u6216\u521b\u5efa\u4e00\u90e8\u65b0\u4f5c\u54c1\u3002'}</p>
+          </div>
+        )}
+        </div>
+      </section>}
     </section>
   );
 }
@@ -3027,6 +3125,7 @@ function ChapterVersionPanel({
 function EditChapterPanel({
   chapter,
   volumes,
+  token,
   disabled,
   onSaveDraft,
   onSubmit,
@@ -3034,6 +3133,7 @@ function EditChapterPanel({
 }: {
   chapter?: DraftChapter;
   volumes: NovelVolume[];
+  token?: string;
   disabled: boolean;
   onSaveDraft(
     chapterId: string,
@@ -3189,7 +3289,7 @@ function EditChapterPanel({
   }
 
   return (
-    <form className="panel author-form" onSubmit={submit}>
+    <form className="panel author-form chapter-editor-form" onSubmit={submit}>
       <div className="section-title">
         <h2>编辑章节</h2>
         {chapter ? (
@@ -3262,8 +3362,11 @@ function EditChapterPanel({
           }}
         />
       </label>
-      <label>
-        正文
+      <label className="chapter-content-field">
+        <span className="chapter-field-label">
+          正文
+          <small>已写 {content.trim().length} 字</small>
+        </span>
         <textarea
           disabled={!canEdit}
           value={content}
@@ -3273,6 +3376,17 @@ function EditChapterPanel({
           }}
         />
       </label>
+      <AuthorAiAssistant
+        chapter={chapter}
+        token={token}
+        title={title}
+        content={content}
+        disabled={disabled || !canEdit}
+        onAppend={(suggestion) => {
+          setContent((current) => `${current.trimEnd()}\n\n${suggestion.trim()}`.trim());
+          markDirty();
+        }}
+      />
       {localError && (
         <p className="auth-error" role="alert">
           {localError}
@@ -3295,6 +3409,119 @@ function EditChapterPanel({
         </button>
       </div>
     </form>
+  );
+}
+
+function AuthorAiAssistant({
+  chapter,
+  token,
+  title,
+  content,
+  disabled,
+  onAppend,
+}: {
+  chapter?: DraftChapter;
+  token?: string;
+  title: string;
+  content: string;
+  disabled: boolean;
+  onAppend(suggestion: string): void;
+}) {
+  const [result, setResult] = useState<AuthorAiAssistanceResult>();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string>();
+  const [copied, setCopied] = useState(false);
+
+  const actions: Array<{ action: AuthorAiAction; label: string }> = [
+    { action: 'summary', label: '章节摘要' },
+    { action: 'outline', label: '大纲建议' },
+    { action: 'polish', label: '润色建议' },
+    { action: 'consistency', label: '设定检查' },
+  ];
+
+  useEffect(() => {
+    setResult(undefined);
+    setError(undefined);
+    setCopied(false);
+  }, [chapter?.id]);
+
+  async function run(action: AuthorAiAction) {
+    if (!chapter || !token) {
+      return;
+    }
+    if (title.trim().length === 0 || content.trim().length < 20) {
+      setError('请先填写章节标题，并准备至少 20 个字符的正文。');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(undefined);
+    setCopied(false);
+    try {
+      setResult(await api.authorAiAssist(token, chapter.id, { action, title, content }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'AI 辅助暂时不可用，请稍后重试。');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function copyResult() {
+    if (!result) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(result.content);
+      setCopied(true);
+    } catch {
+      setError('复制失败，请手动选择建议内容。');
+    }
+  }
+
+  return (
+    <section className="author-ai-assistant" aria-label="AI 写作辅助">
+      <div className="author-ai-heading">
+        <div>
+          <span className="author-ai-title">
+            <Sparkles size={16} aria-hidden />
+            AI 写作辅助
+          </span>
+          <small>基于当前未保存的标题和正文生成建议，内容不会自动保存或发布。</small>
+        </div>
+      </div>
+      <div className="author-ai-actions" aria-label="AI 辅助操作">
+        {actions.map(({ action, label }) => (
+          <button
+            key={action}
+            className="ghost-button"
+            type="button"
+            disabled={disabled || isLoading || !chapter || !token}
+            onClick={() => void run(action)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {!chapter && <p className="state-line">保存章节草稿后即可使用 AI 辅助。</p>}
+      {error && <p className="auth-error" role="alert">{error}</p>}
+      {result && (
+        <div className="author-ai-result">
+          <div className="author-ai-result-heading">
+            <strong>{actions.find((item) => item.action === result.action)?.label}</strong>
+            <span>{result.model}</span>
+          </div>
+          <pre>{result.content}</pre>
+          <div className="author-ai-result-actions">
+            <button className="ghost-button" type="button" onClick={() => void copyResult()}>
+              {copied ? '已复制' : '复制建议'}
+            </button>
+            <button className="ghost-button" type="button" onClick={() => onAppend(result.content)}>
+              插入正文末尾
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

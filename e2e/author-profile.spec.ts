@@ -6,13 +6,14 @@ const authorCredentials = {
 };
 
 test('author profile edits persist after refreshing the workbench', async ({ page }) => {
-  await page.goto('/login');
+  await page.goto('http://localhost:5302/login');
   await page.locator('input[type="email"]').fill(authorCredentials.email);
   await page.locator('input[type="password"]').fill(authorCredentials.password);
   await page.locator('form button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/http:\/\/localhost:5302\/$/);
 
-  await page.goto('/author');
+  await page.goto('http://localhost:5302/');
+  await page.getByRole('button', { name: '\u8d44\u6599' }).click();
   const profileForm = page.locator('.author-profile-form');
   const penName = 'E2E Updated Author';
   const bio = 'Updated profile text used only for end-to-end regression coverage.';
@@ -23,6 +24,7 @@ test('author profile edits persist after refreshing the workbench', async ({ pag
   await expect(page.locator('.auth-message')).toBeVisible();
 
   await page.reload();
+  await page.getByRole('button', { name: '\u8d44\u6599' }).click();
   await expect(profileForm.locator('input')).toHaveValue(penName);
   await expect(profileForm.locator('textarea')).toHaveValue(bio);
 });

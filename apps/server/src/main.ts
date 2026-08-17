@@ -8,8 +8,9 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   const config = app.get(ConfigService);
-  const webOrigin = config.get<string>('WEB_ORIGIN') ?? 'http://localhost:5173';
-  const adminOrigin = config.get<string>('ADMIN_ORIGIN') ?? 'http://localhost:5174';
+  const webOrigin = config.get<string>('WEB_ORIGIN') ?? 'http://localhost:5300';
+  const adminOrigin = config.get<string>('ADMIN_ORIGIN') ?? 'http://localhost:5301';
+  const authorOrigin = config.get<string>('AUTHOR_ORIGIN') ?? 'http://localhost:5302';
   const port = Number(config.get<string>('PORT') ?? 3000);
   const host = config.get<string>('HOST') ?? '0.0.0.0';
 
@@ -17,7 +18,7 @@ async function bootstrap() {
   app.use(json({ limit: '3mb' }));
   app.use(urlencoded({ extended: true, limit: '3mb' }));
   app.enableCors({
-    origin: [webOrigin, adminOrigin],
+    origin: [webOrigin, authorOrigin, adminOrigin],
     credentials: true,
   });
   app.useGlobalPipes(

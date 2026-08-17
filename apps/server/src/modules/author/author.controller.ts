@@ -17,9 +17,11 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { RequestUser } from '../auth/auth.types';
 import { AuthorAnnouncementsService } from './author-announcements.service';
+import { AuthorAiService } from './author-ai.service';
 import { AuthorCalendarService } from './author-calendar.service';
 import { AuthorService } from './author.service';
 import { AuthorCalendarQueryDto } from './dto/author-calendar-query.dto';
+import { AuthorAiAssistanceDto } from './dto/author-ai-assistance.dto';
 import { AuthorDashboardQueryDto } from './dto/author-dashboard-query.dto';
 import { AssignChapterVolumeDto } from './dto/assign-chapter-volume.dto';
 import { BatchDeleteChaptersDto } from './dto/batch-delete-chapters.dto';
@@ -39,10 +41,11 @@ import { UpdateVolumeDto } from './dto/update-volume.dto';
 
 @Controller('author')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.AUTHOR, UserRole.ADMIN)
+@Roles(UserRole.AUTHOR)
 export class AuthorController {
   constructor(
     private readonly authorService: AuthorService,
+    private readonly authorAiService: AuthorAiService,
     private readonly announcementsService: AuthorAnnouncementsService,
     private readonly calendarService: AuthorCalendarService,
   ) {}
@@ -284,6 +287,19 @@ export class AuthorController {
       code: 0,
       message: dto.action === 'save' ? '章节草稿已保存' : '章节已提交审核',
       data: await this.authorService.updateChapter(user, chapterId, dto),
+    };
+  }
+
+  @Post('chapters/:chapterId/ai-assistance')
+  async assistChapterWithAi(
+    @CurrentUser() user: RequestUser,
+    @Param('chapterId') chapterId: string,
+    @Body() dto: AuthorAiAssistanceDto,
+  ) {
+    return {
+      code: 0,
+      message: 'AI assistance generated',
+      data: await this.authorAiService.assistChapter(user, chapterId, dto),
     };
   }
 

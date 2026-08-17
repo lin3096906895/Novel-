@@ -1,0 +1,70 @@
+.author-portal-shell {
+  min-height: 100vh;
+  color: #1f2933;
+  background: #f5f7fa;
+}
+
+.author-portal-header {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 max(24px, calc((100vw - 1320px) / 2));
+  border-bottom: 1px solid #dfe6ed;
+  background: #ffffff;
+}
+
+.author-portal-brand,
+.author-portal-actions,
+.author-portal-user {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.author-portal-brand {
+  color: #1f4d44;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.author-portal-brand svg {
+  color: #176b61;
+}
+
+.author-portal-actions {
+  justify-content: flex-end;
+}
+
+.author-portal-user {
+  color: #536171;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.author-portal-main {
+  width: min(1320px, 100%);
+  margin: 0 auto;
+  padding: 28px 24px 44px;
+}
+
+.author-portal-main .login-page {
+  min-height: calc(100vh - 140px);
+}
+
+@media (max-width: 760px) {
+  .author-portal-header {
+    min-height: 58px;
+    padding: 0 14px;
+  }
+
+  .author-portal-brand span,
+  .author-portal-user {
+    display: none;
+  }
+
+  .author-portal-main {
+    padding: 20px 14px 32px;
+  }
+}

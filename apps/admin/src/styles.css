@@ -1,6 +1,6 @@
 :root {
   color: #202a36;
-  background: #f3f5f8;
+  background: #f5f7fa;
   font-family:
     Inter,
     'PingFang SC',
@@ -18,6 +18,8 @@
 body {
   margin: 0;
   min-width: 320px;
+  background: #f5f7fa;
+  text-rendering: optimizeLegibility;
 }
 
 .admin-login-page {
@@ -49,6 +51,7 @@ body {
 
 .admin-sider {
   background: #172033 !important;
+  box-shadow: 8px 0 24px rgb(15 23 42 / 8%);
 }
 
 .admin-brand {
@@ -62,6 +65,10 @@ body {
   font-weight: 800;
 }
 
+.admin-brand .anticon {
+  color: #65c6ae;
+}
+
 .admin-header {
   display: flex;
   align-items: center;
@@ -70,7 +77,8 @@ body {
   min-height: 88px;
   padding: 18px 28px;
   background: #ffffff;
-  border-bottom: 1px solid #e5e8ef;
+  border-bottom: 1px solid #e0e6ed;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 3%);
 }
 
 .admin-header h3 {
@@ -94,15 +102,17 @@ body {
 
 .metric-grid article,
 .admin-panel {
-  border: 1px solid #e1e6ee;
+  border: 1px solid #e0e6ed;
   border-radius: 8px;
   background: #ffffff;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 4%);
 }
 
 .metric-grid article {
   display: grid;
   gap: 10px;
   padding: 18px;
+  border-top: 3px solid #65c6ae;
 }
 
 .metric-grid strong {
@@ -112,6 +122,19 @@ body {
 .admin-panel {
   padding: 18px;
   margin-bottom: 18px;
+}
+
+.admin-panel .ant-tabs-nav {
+  margin-bottom: 18px;
+}
+
+.admin-panel .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #176b61;
+  font-weight: 700;
+}
+
+.admin-panel .ant-tabs-ink-bar {
+  background: #176b61;
 }
 
 .panel-heading {

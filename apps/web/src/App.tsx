@@ -6,13 +6,13 @@ import {
   PenLine,
   Search,
   Settings,
+  ShieldCheck,
   UsersRound,
   UserRound,
 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
-import { AuthorPage } from './pages/AuthorPage';
 import { AuthorProfilePage } from './pages/AuthorProfilePage';
 import { BookshelfPage } from './pages/BookshelfPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -27,6 +27,8 @@ import { SettingsPage } from './pages/SettingsPage';
 function App() {
   const { user, isAuthenticated, logout } = useAuth();
   const location = useLocation();
+  const authorPortalUrl = import.meta.env.VITE_AUTHOR_APP_URL ?? 'http://localhost:5302';
+  const adminPortalUrl = import.meta.env.VITE_ADMIN_APP_URL ?? 'http://localhost:5301';
   const isReaderRoute = location.pathname.startsWith('/chapters/');
   const contentRef = useRef<HTMLElement>(null);
   const previousPathRef = useRef(location.pathname);
@@ -74,10 +76,16 @@ function App() {
               <UsersRound size={18} aria-hidden />
               关注
             </NavLink>
-            <NavLink className="nav-item" to="/author">
+            <a className="nav-item" href={authorPortalUrl}>
               <PenLine size={18} aria-hidden />
               写作
-            </NavLink>
+            </a>
+            {user?.role === 'ADMIN' && (
+              <a className="nav-item" href={adminPortalUrl}>
+                <ShieldCheck size={18} aria-hidden />
+                管理后台
+              </a>
+            )}
             <NavLink className="nav-item" to="/notifications">
               <Bell size={18} aria-hidden />
               通知
@@ -115,7 +123,7 @@ function App() {
           <Route path="/authors/:id" element={<AuthorProfilePage />} />
           <Route path="/chapters/:id" element={<ReaderPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/author" element={<AuthorPage />} />
+          <Route path="/author" element={<Navigate replace to="/" />} />
           <Route path="/bookshelf" element={<BookshelfPage />} />
           <Route path="/following" element={<FollowingPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />

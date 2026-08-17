@@ -29,7 +29,7 @@ export class AuthorOnboardingService {
     }
 
     return {
-      canWrite: account.role === UserRole.AUTHOR || account.role === UserRole.ADMIN,
+      canWrite: account.role === UserRole.AUTHOR,
       emailVerified: Boolean(account.emailVerifiedAt),
       profile: account.authorProfile,
       application: account.authorApplication,
@@ -48,8 +48,11 @@ export class AuthorOnboardingService {
     if (!account) {
       throw new NotFoundException('用户不存在');
     }
-    if (account.role === UserRole.AUTHOR || account.role === UserRole.ADMIN) {
+    if (account.role === UserRole.AUTHOR) {
       throw new BadRequestException('当前账号已经拥有作者权限');
+    }
+    if (account.role === UserRole.ADMIN) {
+      throw new BadRequestException('Administrator accounts use the admin portal and cannot submit author applications.');
     }
     if (!account.emailVerifiedAt) {
       throw new BadRequestException('请先完成邮箱验证');
@@ -82,7 +85,7 @@ export class AuthorOnboardingService {
   }
 
   async updateProfile(user: RequestUser, dto: UpdateAuthorProfileDto) {
-    if (user.role !== UserRole.AUTHOR && user.role !== UserRole.ADMIN) {
+    if (user.role !== UserRole.AUTHOR) {
       throw new BadRequestException('当前账号还不是作者');
     }
 

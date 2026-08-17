@@ -8,6 +8,7 @@ export type UserRole = 'READER' | 'AUTHOR' | 'ADMIN';
 export type UserStatus = 'ACTIVE' | 'SUSPENDED';
 export type AuthorSaveAction = 'save' | 'submit';
 export type AuthorChapterSaveSource = 'manual' | 'autosave';
+export type AuthorAiAction = 'summary' | 'outline' | 'polish' | 'consistency';
 export type AuthorApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface User {
@@ -281,6 +282,12 @@ export interface DraftChapter {
   createdAt: string;
   updatedAt: string;
   latestRejection?: ReviewBrief | null;
+}
+
+export interface AuthorAiAssistanceResult {
+  action: AuthorAiAction;
+  content: string;
+  model: string;
 }
 
 export type ChapterVersionSource = 'MANUAL' | 'AUTOSAVE' | 'SUBMIT' | 'RESTORE';

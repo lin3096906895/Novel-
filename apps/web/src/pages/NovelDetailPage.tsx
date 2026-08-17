@@ -37,6 +37,13 @@ import { formatWordCount } from '../utils/format';
 const chapterPageSize = 20;
 
 type ChapterOrder = 'asc' | 'desc';
+type DetailWorkspaceView = 'catalog' | 'discussion' | 'rating';
+
+const detailWorkspaceLabels: Record<DetailWorkspaceView, string> = {
+  catalog: '\u76ee\u5f55',
+  discussion: '\u8ba8\u8bba',
+  rating: '\u8bc4\u5206',
+};
 
 const emptyRating: NovelRatingSummary = {
   average: 0,
@@ -51,6 +58,7 @@ export function NovelDetailPage() {
   const [novel, setNovel] = useState<Novel>();
   const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [announcements, setAnnouncements] = useState<NovelAnnouncement[]>([]);
+  const [workspaceView, setWorkspaceView] = useState<DetailWorkspaceView>('catalog');
   const [chapterOrder, setChapterOrder] = useState<ChapterOrder>('asc');
   const [chapterPage, setChapterPage] = useState(1);
   const [comments, setComments] = useState<PaginatedComments>({
@@ -536,7 +544,24 @@ export function NovelDetailPage() {
         </div>
       </header>
 
-      <section className="panel novel-rating-panel">
+      <nav className="detail-workspace-tabs" aria-label="\u4f5c\u54c1\u5185\u5bb9">
+        {(Object.keys(detailWorkspaceLabels) as DetailWorkspaceView[]).map((view) => (
+          <button
+            aria-current={workspaceView === view ? 'page' : undefined}
+            className={workspaceView === view ? 'active' : ''}
+            key={view}
+            type="button"
+            onClick={() => setWorkspaceView(view)}
+          >
+            {detailWorkspaceLabels[view]}
+            {view === 'discussion' && comments.pagination.total > 0
+              ? ` (${comments.pagination.total})`
+              : ''}
+          </button>
+        ))}
+      </nav>
+
+      {workspaceView === 'rating' && <section className="panel novel-rating-panel">
         <div className="section-title">
           <div>
             <h2>作品评分</h2>
@@ -616,9 +641,9 @@ export function NovelDetailPage() {
             )}
           </div>
         </div>
-      </section>
+      </section>}
 
-      {announcements.length > 0 && (
+      {workspaceView === 'catalog' && announcements.length > 0 && (
         <section className="panel novel-announcement-panel">
           <div className="section-title">
             <div>
@@ -649,7 +674,7 @@ export function NovelDetailPage() {
         </section>
       )}
 
-      <section className="panel">
+      {workspaceView === 'catalog' && <section className="panel">
         <div className="section-title chapter-titlebar">
           <div>
             <h2>目录</h2>
@@ -718,9 +743,9 @@ export function NovelDetailPage() {
             </button>
           </nav>
         )}
-      </section>
+      </section>}
 
-      <section className="panel">
+      {workspaceView === 'discussion' && <section className="panel">
         <div className="section-title">
           <h2>作品书评</h2>
           <span className="muted">{comments.pagination.total} 条</span>
@@ -794,7 +819,7 @@ export function NovelDetailPage() {
             </button>
           </div>
         )}
-      </section>
+      </section>}
     </article>
   );
 }
