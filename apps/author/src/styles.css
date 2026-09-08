@@ -44,9 +44,18 @@
 }
 
 .author-portal-main {
-  width: min(1320px, 100%);
+  width: min(1240px, 100%);
   margin: 0 auto;
   padding: 28px 24px 44px;
+}
+
+.author-portal-main.writing-mode {
+  width: min(1500px, 100%);
+  padding-top: 18px;
+}
+
+.author-portal-shell.writing-mode {
+  background: #f3f5f7;
 }
 
 .author-portal-main .login-page {

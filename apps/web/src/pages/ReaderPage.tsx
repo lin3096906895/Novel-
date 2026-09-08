@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Bookmark,
   BookmarkCheck,
+  BookOpen,
   BookOpenCheck,
   ChevronLeft,
   ChevronRight,
@@ -17,12 +18,14 @@ import {
   MessageCircle,
   MessageSquareText,
   Minus,
+  Moon,
   Plus,
   Reply,
   Save,
   Search,
   Send,
   SlidersHorizontal,
+  Sun,
   Trash2,
   X,
 } from 'lucide-react';
@@ -1583,51 +1586,19 @@ export function ReaderPage() {
 
   const readerWidth = preference.contentWidth + 84;
   const themeClass = preference.theme.toLowerCase();
+  const chapterAuthor =
+    chapter.novel.sourceAuthor?.trim() ||
+    chapter.novel.author.authorProfile?.penName ||
+    chapter.novel.author.nickname;
 
   return (
     <article className={`reader-page reader-theme-${themeClass}`}>
       <header className="reader-toolbar">
         <Link to={`/novels/${chapter.novel.id}`} onClick={() => saveBeforeNavigation()}>
           <ArrowLeft size={18} aria-hidden />
-          {chapter.novel.title}
+          返回《{chapter.novel.title}》
         </Link>
         <div className="reader-actions">
-          <button
-            ref={catalogButtonRef}
-            className={`ghost-button${isCatalogOpen ? ' active' : ''}`}
-            type="button"
-            onClick={toggleCatalog}
-            aria-expanded={isCatalogOpen}
-            aria-controls="reader-catalog"
-          >
-            <List size={16} aria-hidden />
-            目录
-          </button>
-          <button
-            className={`ghost-button${isSettingsOpen ? ' active' : ''}`}
-            type="button"
-            onClick={() => {
-              setIsCatalogOpen(false);
-              setIsSettingsOpen((current) => !current);
-            }}
-            aria-expanded={isSettingsOpen}
-          >
-            <SlidersHorizontal size={16} aria-hidden />
-            阅读设置
-          </button>
-          <button
-            className={`ghost-button reader-bookmark-button${isBookmarked ? ' active' : ''}`}
-            type="button"
-            onClick={() => void toggleBookmark()}
-            disabled={isBookmarkSaving}
-          >
-            {isBookmarked ? (
-              <BookmarkCheck size={16} aria-hidden />
-            ) : (
-              <Bookmark size={16} aria-hidden />
-            )}
-            {isBookmarked ? '已加书签' : '加入书签'}
-          </button>
           <button className="ghost-button" type="button" onClick={saveProgress} disabled={isSaving}>
             <Save size={16} aria-hidden />
             {isSaving ? '保存中...' : `保存 ${progress}%`}
@@ -1647,6 +1618,27 @@ export function ReaderPage() {
             {token ? ` · 本书 ${formatReadingDuration(totalReadingSeconds)}` : ''}
           </span>
         </div>
+        <div className="reader-mobile-actions" aria-label="阅读工具">
+          <button type="button" onClick={toggleCatalog} aria-expanded={isCatalogOpen}>
+            <List size={17} aria-hidden />
+            目录
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsCatalogOpen(false);
+              setIsSettingsOpen((current) => !current);
+            }}
+            aria-expanded={isSettingsOpen}
+          >
+            <SlidersHorizontal size={17} aria-hidden />
+            设置
+          </button>
+          <button type="button" onClick={() => void toggleBookmark()} disabled={isBookmarkSaving}>
+            {isBookmarked ? <BookmarkCheck size={17} aria-hidden /> : <Bookmark size={17} aria-hidden />}
+            书签
+          </button>
+        </div>
       </header>
 
       <div
@@ -1659,6 +1651,59 @@ export function ReaderPage() {
       >
         <span style={{ width: `${progress}%` }} />
       </div>
+
+      <aside
+        className="reader-side-tools"
+        aria-label="阅读快捷工具"
+        style={{ left: `calc(50% + ${readerWidth / 2 + 18}px)` }}
+      >
+        <button
+          ref={catalogButtonRef}
+          className={isCatalogOpen ? 'active' : ''}
+          type="button"
+          onClick={toggleCatalog}
+          aria-expanded={isCatalogOpen}
+          aria-controls="reader-catalog"
+        >
+          <List size={21} aria-hidden />
+          <span>目录</span>
+        </button>
+        <Link to={`/novels/${chapter.novel.id}`} onClick={() => saveBeforeNavigation()}>
+          <BookOpen size={21} aria-hidden />
+          <span>书详情</span>
+        </Link>
+        <button
+          className={isBookmarked ? 'active' : ''}
+          type="button"
+          onClick={() => void toggleBookmark()}
+          disabled={isBookmarkSaving}
+        >
+          {isBookmarked ? <BookmarkCheck size={21} aria-hidden /> : <Bookmark size={21} aria-hidden />}
+          <span>{isBookmarked ? '已书签' : '书签'}</span>
+        </button>
+        <button
+          className={preference.theme === 'DARK' ? 'active' : ''}
+          type="button"
+          onClick={() =>
+            updatePreference({ theme: preference.theme === 'DARK' ? 'LIGHT' : 'DARK' })
+          }
+        >
+          {preference.theme === 'DARK' ? <Sun size={21} aria-hidden /> : <Moon size={21} aria-hidden />}
+          <span>{preference.theme === 'DARK' ? '日间' : '夜间'}</span>
+        </button>
+        <button
+          className={isSettingsOpen ? 'active' : ''}
+          type="button"
+          onClick={() => {
+            setIsCatalogOpen(false);
+            setIsSettingsOpen((current) => !current);
+          }}
+          aria-expanded={isSettingsOpen}
+        >
+          <SlidersHorizontal size={21} aria-hidden />
+          <span>设置</span>
+        </button>
+      </aside>
 
       {isChapterReportOpen && (
         <div className="reader-content-report">
@@ -1942,11 +1987,16 @@ export function ReaderPage() {
       {message && <p className="auth-message reader-message">{message}</p>}
 
       <section className="reader-sheet" style={{ maxWidth: readerWidth }}>
-        <p className="eyebrow">{chapter.novel.author.nickname}</p>
+        <p className="reader-book-context">
+          <BookOpenCheck size={15} aria-hidden />
+          <span>{chapter.novel.title}</span>
+        </p>
         <h1>{chapter.title}</h1>
         <p className="reader-chapter-meta">
-          第 {chapter.orderIndex} 章 · {formatWordCount(chapter.wordCount)}
-          {chapter.publishedAt ? ` · ${formatDate(chapter.publishedAt)}` : ''}
+          <span>第 {chapter.orderIndex} 章</span>
+          <span>作者：{chapterAuthor}</span>
+          <span>{formatWordCount(chapter.wordCount)}</span>
+          {chapter.publishedAt && <span>{formatDate(chapter.publishedAt)}</span>}
         </p>
         <div
           ref={readerContentRef}
@@ -1967,7 +2017,7 @@ export function ReaderPage() {
                   )}
                 </p>
                 <button
-                  className={`reader-paragraph-comment-trigger${paragraphCommentCount > 0 ? ' active' : ''}`}
+                  className={`reader-paragraph-comment-trigger${paragraphCommentCount > 0 ? ' active' : ' empty'}`}
                   type="button"
                   onClick={() => void openParagraphComments(index)}
                   aria-label={`查看第 ${index + 1} 段段评，${paragraphCommentCount} 条`}

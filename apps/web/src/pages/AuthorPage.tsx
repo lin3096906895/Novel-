@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowDown,
   ArrowUp,
@@ -18,6 +18,7 @@ import {
   CircleCheckBig,
   FilePlus2,
   FileText,
+  Globe2,
   History,
   ImagePlus,
   Layers3,
@@ -42,6 +43,10 @@ import type {
   AuthorCalendar,
   AuthorCalendarEvent,
   AuthorCalendarEventType,
+  AuthorCollectionTaskPreview,
+  AuthorCollectionTaskResult,
+  AuthorCollectionHtmlAnalysis,
+  AuthorCollectionJsonAnalysis,
   AuthorDashboard,
   AuthorNovel,
   AuthorOnboarding,
@@ -59,6 +64,7 @@ import { ContentAppealsPanel } from '../components/ContentAppealsPanel';
 
 const writerRoles = new Set(['AUTHOR']);
 const coverTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const readerPortalUrl = import.meta.env.VITE_READER_APP_URL ?? 'http://localhost:5300';
 
 type NovelPayload = {
   title: string;
@@ -91,24 +97,36 @@ type CalendarPlanPayload = {
 
 type AutoSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 type DashboardTrendMetric = 'bookshelfAdds' | 'comments' | 'publishedWords';
-type AuthorWorkspaceView = 'overview' | 'works' | 'planning' | 'profile';
-type AuthorWorkView = 'novel' | 'catalog' | 'chapter';
+type AuthorWorkspaceView =
+  | 'home'
+  | 'dashboard'
+  | 'appeals'
+  | 'works'
+  | 'collection'
+  | 'planning'
+  | 'profile';
+type AuthorWorkView = 'novel' | 'catalog';
 
 const authorWorkspaceLabels: Record<AuthorWorkspaceView, string> = {
-  overview: '\u6982\u89c8',
-  works: '\u4f5c\u54c1',
-  planning: '\u8ba1\u5212',
-  profile: '\u8d44\u6599',
+  home: '工作台',
+  dashboard: '数据概览',
+  appeals: '内容申诉',
+  works: '小说作品',
+  collection: '采集任务',
+  planning: '创作计划',
+  profile: '作者资料',
 };
 
 const authorWorkLabels: Record<AuthorWorkView, string> = {
   novel: '\u4f5c\u54c1\u4fe1\u606f',
   catalog: '\u76ee\u5f55\u7ba1\u7406',
-  chapter: '\u7ae0\u8282\u7f16\u8f91',
 };
 
 export function AuthorPage() {
   const { token, user, isReady, isAuthenticated, reloadUser } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { novelId: routeNovelId, chapterId: routeChapterId } = useParams();
   const [categories, setCategories] = useState<Category[]>([]);
   const [novels, setNovels] = useState<AuthorNovel[]>([]);
   const [dashboard, setDashboard] = useState<AuthorDashboard>();
@@ -121,12 +139,16 @@ export function AuthorPage() {
   const [isOnboardingLoading, setIsOnboardingLoading] = useState(false);
   const [selectedNovelId, setSelectedNovelId] = useState('');
   const [selectedChapterId, setSelectedChapterId] = useState('');
-  const [workspaceView, setWorkspaceView] = useState<AuthorWorkspaceView>('overview');
+  const [workspaceView, setWorkspaceView] = useState<AuthorWorkspaceView>(() =>
+    new URLSearchParams(location.search).get('view') === 'works' ? 'works' : 'home',
+  );
   const [workView, setWorkView] = useState<AuthorWorkView>('novel');
   const [isCreateNovelOpen, setIsCreateNovelOpen] = useState(false);
+  const [isWorkDetailOpen, setIsWorkDetailOpen] = useState(false);
+  const [expandedNav, setExpandedNav] = useState({ works: true, data: true });
   const [chapterVersions, setChapterVersions] = useState<ChapterVersion[]>([]);
   const [deletedChapters, setDeletedChapters] = useState<DeletedChapter[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingNovel, setIsSubmittingNovel] = useState(false);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
   const [isUpdatingNovelLifecycle, setIsUpdatingNovelLifecycle] = useState(false);
@@ -142,14 +164,18 @@ export function AuthorPage() {
   const [error, setError] = useState<string>();
 
   const canWrite = Boolean(user && writerRoles.has(user.role));
+  const activeNovelId = routeNovelId ?? selectedNovelId;
+  const activeChapterId =
+    routeChapterId && routeChapterId !== 'new' ? routeChapterId : selectedChapterId;
   const selectedNovel = useMemo(
-    () => novels.find((novel) => novel.id === selectedNovelId),
-    [novels, selectedNovelId],
+    () => novels.find((novel) => novel.id === activeNovelId),
+    [activeNovelId, novels],
   );
   const selectedChapter = useMemo(
-    () => selectedNovel?.chapters?.find((chapter) => chapter.id === selectedChapterId),
-    [selectedChapterId, selectedNovel],
+    () => selectedNovel?.chapters?.find((chapter) => chapter.id === activeChapterId),
+    [activeChapterId, selectedNovel],
   );
+  const isWritingRoute = Boolean(routeNovelId && routeChapterId);
 
   async function loadData(activeToken: string, days = dashboardDays, month = calendarMonth) {
     setIsLoading(true);
@@ -341,7 +367,10 @@ export function AuthorPage() {
   if (user?.role === 'ADMIN') {
     return (
       <AuthorState title="管理员请使用管理后台">
-        <a className="primary-link" href={import.meta.env.VITE_ADMIN_APP_URL ?? 'http://localhost:5301'}>
+        <a
+          className="primary-link"
+          href={import.meta.env.VITE_ADMIN_APP_URL ?? 'http://localhost:5301'}
+        >
           进入管理后台
         </a>
       </AuthorState>
@@ -363,748 +392,1560 @@ export function AuthorPage() {
     );
   }
 
-  return (
-    <section className="author-page">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">作者工作台</p>
-          <h1>管理作品与章节</h1>
-        </div>
-        <button
-          className="ghost-button"
-          type="button"
-          onClick={() => token && loadData(token, dashboardDays)}
-        >
-          <RefreshCcw size={16} aria-hidden />
-          刷新
-        </button>
-      </header>
+  if (isWritingRoute) {
+    const isNewChapter = routeChapterId === 'new';
 
-      {(error || message) && (
-        <div className={error ? 'auth-error' : 'auth-message'} role={error ? 'alert' : 'status'}>
-          {error || message}
-        </div>
-      )}
+    if (isLoading && !selectedNovel) {
+      return <AuthorState title="正在打开章节编辑器..." />;
+    }
 
-      <nav className="author-workspace-tabs" aria-label="\u4f5c\u8005\u5de5\u4f5c\u533a">
-        {(Object.keys(authorWorkspaceLabels) as AuthorWorkspaceView[]).map((view) => (
-          <button
-            aria-current={workspaceView === view ? 'page' : undefined}
-            className={workspaceView === view ? 'active' : ''}
-            key={view}
-            type="button"
-            onClick={() => setWorkspaceView(view)}
-          >
-            {authorWorkspaceLabels[view]}
+    if (!selectedNovel) {
+      return (
+        <AuthorState title="没有找到这部作品">
+          <button className="primary-link" type="button" onClick={() => navigate('/?view=works')}>
+            返回作品管理
           </button>
-        ))}
-      </nav>
+        </AuthorState>
+      );
+    }
 
-      {workspaceView === 'profile' && <AuthorProfilePanel
-        disabled={isOnboardingLoading}
-        profile={onboarding?.profile}
-        fallbackPenName={user?.nickname ?? ''}
-        onSave={saveAuthorProfile}
-      />}
+    return (
+      <section className="chapter-writing-page">
+        <header className="chapter-writing-page-header">
+          <button className="ghost-button" type="button" onClick={() => navigate('/?view=works')}>
+            <ChevronLeft size={17} aria-hidden />
+            返回作品管理
+          </button>
+          <div>
+            <strong>{selectedNovel.title}</strong>
+            <small>{isNewChapter ? '创建新章节' : selectedChapter?.title || '章节编辑'}</small>
+          </div>
+        </header>
 
-      {workspaceView === 'overview' && token && <ContentAppealsPanel token={token} />}
-
-      {workspaceView === 'overview' && <AuthorDashboardPanel
-        dashboard={dashboard}
-        days={dashboardDays}
-        isLoading={isLoading || isDashboardLoading}
-        onChangeDays={(days) => {
-          setDashboardDays(days);
-          if (token) {
-            void loadDashboard(token, days);
-          }
-        }}
-        onSelectNovel={setSelectedNovelId}
-        selectedNovelId={selectedNovelId}
-      />}
-
-      {workspaceView === 'planning' && <AuthorCalendarPanel
-        calendar={calendar}
-        disabled={isUpdatingCalendar || !token}
-        isLoading={isLoading || isCalendarLoading}
-        month={calendarMonth}
-        novels={novels}
-        selectedNovelId={selectedNovelId}
-        onMonthChange={(month) => {
-          setCalendarMonth(month);
-          if (token) {
-            void loadCalendar(token, month);
-          }
-        }}
-        onCreate={async (novelId, payload) => {
-          if (!token) {
-            return;
-          }
-          setIsUpdatingCalendar(true);
-          setError(undefined);
-          setMessage(undefined);
-          try {
-            await api.createAuthorCalendarEvent(token, novelId, payload);
-            await loadCalendar(token, calendarMonth);
-            setMessage('创作计划已创建');
-          } catch (err) {
-            setError(err instanceof Error ? err.message : '创作计划创建失败');
-            throw err;
-          } finally {
-            setIsUpdatingCalendar(false);
-          }
-        }}
-        onUpdate={async (eventId, payload) => {
-          if (!token) {
-            return;
-          }
-          setIsUpdatingCalendar(true);
-          setError(undefined);
-          setMessage(undefined);
-          try {
-            await api.updateAuthorCalendarEvent(token, eventId, payload);
-            await loadCalendar(token, calendarMonth);
-            setMessage('创作计划已更新');
-          } catch (err) {
-            setError(err instanceof Error ? err.message : '创作计划更新失败');
-            throw err;
-          } finally {
-            setIsUpdatingCalendar(false);
-          }
-        }}
-        onDelete={async (eventId) => {
-          if (!token) {
-            return;
-          }
-          setIsUpdatingCalendar(true);
-          setError(undefined);
-          setMessage(undefined);
-          try {
-            await api.deleteAuthorCalendarEvent(token, eventId);
-            await loadCalendar(token, calendarMonth);
-            setMessage('创作计划已删除');
-          } catch (err) {
-            setError(err instanceof Error ? err.message : '创作计划删除失败');
-            throw err;
-          } finally {
-            setIsUpdatingCalendar(false);
-          }
-        }}
-      />}
-
-      {workspaceView === 'works' && <section className="author-workspace-layout">
-        <aside className="author-workspace-sidebar">
-        <NovelListPanel
-          isLoading={isLoading}
-          novels={novels}
-          selectedNovelId={selectedNovelId}
-          onSelect={(novelId) => {
-            setSelectedNovelId(novelId);
-            setIsCreateNovelOpen(false);
-          }}
-        />
-        <button
-          className="primary-link author-create-novel-button"
-          type="button"
-          onClick={() => {
-            setIsCreateNovelOpen(true);
-            setWorkView('novel');
-          }}
-        >
-          <BookPlus size={16} aria-hidden />
-          {'\u65b0\u5efa\u4f5c\u54c1'}
-        </button>
-        </aside>
-
-        <div className="author-workspace-main">
-
-        {isCreateNovelOpen && <CreateNovelPanel
-          categories={categories}
-          disabled={isSubmittingNovel || !token}
-          token={token}
-          onSaveDraft={async (payload) => {
-            if (!token) {
-              return;
-            }
-
-            setIsSubmittingNovel(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              const novel = await api.createAuthorNovel(token, { ...payload, action: 'save' });
-              setMessage('作品草稿已保存');
-              await loadData(token);
-              setSelectedNovelId(novel.id);
-              setIsCreateNovelOpen(false);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '保存失败');
-              throw err;
-            } finally {
-              setIsSubmittingNovel(false);
-            }
-          }}
-          onSubmit={async (payload) => {
-            if (!token) {
-              return;
-            }
-
-            setIsSubmittingNovel(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              const novel = await api.createAuthorNovel(token, { ...payload, action: 'submit' });
-              setMessage('作品已提交审核');
-              await loadData(token);
-              setSelectedNovelId(novel.id);
-              setIsCreateNovelOpen(false);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '提交失败');
-              throw err;
-            } finally {
-              setIsSubmittingNovel(false);
-            }
-          }}
-        />}
-
-        {!isCreateNovelOpen && selectedNovel && <>
-          <nav className="author-work-tabs" aria-label="\u4f5c\u54c1\u7ba1\u7406\u5de5\u5177">
-            {(Object.keys(authorWorkLabels) as AuthorWorkView[]).map((view) => (
-              <button
-                aria-current={workView === view ? 'page' : undefined}
-                className={workView === view ? 'active' : ''}
-                key={view}
-                type="button"
-                onClick={() => setWorkView(view)}
-              >
-                {authorWorkLabels[view]}
-              </button>
-            ))}
-          </nav>
-          <p className="author-workspace-selection">{selectedNovel.title}</p>
-        </>}
-
-        {!isCreateNovelOpen && selectedNovel && workView === 'novel' && <>
-        <EditNovelPanel
-          categories={categories}
-          disabled={isSubmittingEdit || isUpdatingNovelLifecycle || !token}
-          novel={selectedNovel}
-          token={token}
-          onSaveDraft={async (novelId, payload) => {
-            if (!token) {
-              return;
-            }
-
-            const updated = await api.updateAuthorNovel(token, novelId, {
-              ...payload,
-              action: 'save',
-            });
-            setNovels((current) =>
-              current.map((novel) =>
-                novel.id === novelId ? { ...novel, ...updated, chapters: novel.chapters } : novel,
-              ),
-            );
-          }}
-          onSubmit={async (novelId, payload) => {
-            if (!token) {
-              return;
-            }
-
-            setIsSubmittingEdit(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              const novel = await api.updateAuthorNovel(token, novelId, {
-                ...payload,
-                action: 'submit',
-              });
-              setMessage('作品已重新提交审核');
-              await loadData(token);
-              setSelectedNovelId(novel.id);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '提交失败');
-              throw err;
-            } finally {
-              setIsSubmittingEdit(false);
-            }
-          }}
-          onDelete={async (novelId) => {
-            if (!token) {
-              return;
-            }
-
-            setIsUpdatingNovelLifecycle(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.deleteAuthorNovel(token, novelId);
-              const remainingNovels = novels.filter((novel) => novel.id !== novelId);
-              setNovels(remainingNovels);
-              setSelectedNovelId(remainingNovels[0]?.id || '');
-              setMessage('作品已删除');
-              await loadDashboard(token, dashboardDays);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '删除失败');
-              throw err;
-            } finally {
-              setIsUpdatingNovelLifecycle(false);
-            }
-          }}
-          onLifecycle={async (novelId, action) => {
-            if (!token) {
-              return;
-            }
-
-            setIsUpdatingNovelLifecycle(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              const updated = await api.updateAuthorNovelLifecycle(token, novelId, action);
-              setNovels((current) =>
-                current.map((novel) => (novel.id === novelId ? { ...novel, ...updated } : novel)),
-              );
-              setMessage(action === 'complete' ? '作品已设为完结' : '作品已恢复连载');
-              await loadDashboard(token, dashboardDays);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '状态更新失败');
-              throw err;
-            } finally {
-              setIsUpdatingNovelLifecycle(false);
-            }
-          }}
-        />
-
-        <AnnouncementManagerPanel
-          disabled={isUpdatingAnnouncements || !token}
-          novel={selectedNovel}
-          onCreate={async (payload) => {
-            if (!token || !selectedNovel) {
-              return;
-            }
-            setIsUpdatingAnnouncements(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.createAuthorAnnouncement(token, selectedNovel.id, payload);
-              await loadData(token);
-              setMessage(payload.action === 'publish' ? '作品公告已发布' : '公告草稿已保存');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '公告保存失败');
-              throw err;
-            } finally {
-              setIsUpdatingAnnouncements(false);
-            }
-          }}
-          onUpdate={async (announcementId, payload) => {
-            if (!token) {
-              return;
-            }
-            setIsUpdatingAnnouncements(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.updateAuthorAnnouncement(token, announcementId, payload);
-              await loadData(token);
-              setMessage(payload.action === 'publish' ? '作品公告已发布' : '公告草稿已保存');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '公告更新失败');
-              throw err;
-            } finally {
-              setIsUpdatingAnnouncements(false);
-            }
-          }}
-          onDelete={async (announcementId) => {
-            if (!token) {
-              return;
-            }
-            setIsUpdatingAnnouncements(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.deleteAuthorAnnouncement(token, announcementId);
-              await loadData(token);
-              setMessage('作品公告已删除');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '公告删除失败');
-              throw err;
-            } finally {
-              setIsUpdatingAnnouncements(false);
-            }
-          }}
-        />
-        </>}
-
-        {!isCreateNovelOpen && selectedNovel && workView === 'catalog' && <>
-        <VolumeManagerPanel
-          disabled={isUpdatingVolumes || !token}
-          novel={selectedNovel}
-          onCreate={async (payload) => {
-            if (!token || !selectedNovel) {
-              return;
-            }
-            setIsUpdatingVolumes(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.createAuthorVolume(token, selectedNovel.id, payload);
-              await loadData(token);
-              setMessage('分卷已创建');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '分卷创建失败');
-              throw err;
-            } finally {
-              setIsUpdatingVolumes(false);
-            }
-          }}
-          onUpdate={async (volumeId, payload) => {
-            if (!token) {
-              return;
-            }
-            setIsUpdatingVolumes(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.updateAuthorVolume(token, volumeId, payload);
-              await loadData(token);
-              setMessage('分卷已更新');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '分卷更新失败');
-              throw err;
-            } finally {
-              setIsUpdatingVolumes(false);
-            }
-          }}
-          onDelete={async (volumeId) => {
-            if (!token) {
-              return;
-            }
-            setIsUpdatingVolumes(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.deleteAuthorVolume(token, volumeId);
-              await loadData(token);
-              setMessage('分卷已删除');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '分卷删除失败');
-              throw err;
-            } finally {
-              setIsUpdatingVolumes(false);
-            }
-          }}
-          onReorder={async (volumeIds) => {
-            if (!token || !selectedNovel) {
-              return;
-            }
-            setIsUpdatingVolumes(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.reorderAuthorVolumes(token, selectedNovel.id, volumeIds);
-              await loadData(token);
-              setMessage('分卷顺序已更新');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '分卷排序失败');
-              throw err;
-            } finally {
-              setIsUpdatingVolumes(false);
-            }
-          }}
-        />
-
-        <ChapterListPanel
-          chapters={selectedNovel?.chapters ?? []}
-          volumes={selectedNovel?.volumes ?? []}
-          disabled={isUpdatingChapters || !token}
-          selectedChapterId={selectedChapterId}
-          onSelect={setSelectedChapterId}
-          onDelete={async (chapterIds) => {
-            if (!token || !selectedNovel) {
-              return;
-            }
-
-            setIsUpdatingChapters(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              const result = await api.deleteAuthorChapters(token, selectedNovel.id, chapterIds);
-              setNovels((current) =>
-                current.map((novel) =>
-                  novel.id === selectedNovel.id
-                    ? {
-                        ...novel,
-                        chapters: result.chapters,
-                        _count: { ...novel._count, chapters: result.chapters.length },
-                      }
-                    : novel,
-                ),
-              );
-              setSelectedChapterId((current) =>
-                result.chapters.some((chapter) => chapter.id === current)
-                  ? current
-                  : result.chapters[0]?.id || '',
-              );
-              setMessage(`已将 ${result.deletedCount} 个章节移入回收站`);
-              await loadChapterTrash(token, selectedNovel.id);
-              await loadDashboard(token, dashboardDays);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '删除失败');
-              throw err;
-            } finally {
-              setIsUpdatingChapters(false);
-            }
-          }}
-          onReorder={async (chapterIds) => {
-            if (!token || !selectedNovel) {
-              return;
-            }
-
-            setIsUpdatingChapters(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              const chapters = await api.reorderAuthorChapters(token, selectedNovel.id, chapterIds);
-              setNovels((current) =>
-                current.map((novel) =>
-                  novel.id === selectedNovel.id ? { ...novel, chapters } : novel,
-                ),
-              );
-              setMessage('章节顺序已更新');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '排序失败');
-              throw err;
-            } finally {
-              setIsUpdatingChapters(false);
-            }
-          }}
-          onAssignVolume={async (chapterId, volumeId) => {
-            if (!token) {
-              return;
-            }
-            setIsUpdatingChapters(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.assignAuthorChapterVolume(token, chapterId, volumeId);
-              await loadData(token);
-              setMessage('章节分卷已更新');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '章节归卷失败');
-              throw err;
-            } finally {
-              setIsUpdatingChapters(false);
-            }
-          }}
-        />
-
-        <ChapterTrashPanel
-          chapters={deletedChapters}
-          disabled={isUpdatingChapters || !token}
-          isLoading={isLoadingChapterTrash}
-          onRestore={async (chapterId) => {
-            if (!token || !selectedNovel) {
-              return;
-            }
-            setIsUpdatingChapters(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.restoreAuthorChapter(token, chapterId);
-              await loadData(token);
-              await loadChapterTrash(token, selectedNovel.id);
-              setSelectedChapterId(chapterId);
-              setMessage('章节已从回收站恢复，并追加到章节列表末尾');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '章节恢复失败');
-              throw err;
-            } finally {
-              setIsUpdatingChapters(false);
-            }
-          }}
-          onPermanentDelete={async (chapterId) => {
-            if (!token || !selectedNovel) {
-              return;
-            }
-            setIsUpdatingChapters(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.permanentlyDeleteAuthorChapter(token, chapterId);
-              await loadChapterTrash(token, selectedNovel.id);
-              setMessage('章节已永久删除');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '永久删除失败');
-              throw err;
-            } finally {
-              setIsUpdatingChapters(false);
-            }
-          }}
-        />
-        </>}
-
-        {!isCreateNovelOpen && selectedNovel && selectedChapter && workView === 'chapter' && <>
-        <EditChapterPanel
-          chapter={selectedChapter}
-          volumes={selectedNovel?.volumes ?? []}
-          token={token}
-          disabled={isSubmittingChapterEdit || !token}
-          onSaveDraft={async (chapterId, payload, saveSource) => {
-            if (!token) {
-              return;
-            }
-
-            const updated = await api.updateAuthorChapter(token, chapterId, {
-              ...payload,
-              action: 'save',
-              saveSource,
-            });
-            setNovels((current) =>
-              current.map((novel) => ({
-                ...novel,
-                chapters: novel.chapters?.map((chapter) =>
-                  chapter.id === chapterId ? { ...chapter, ...updated } : chapter,
-                ),
-              })),
-            );
-            await loadChapterVersions(token, chapterId);
-          }}
-          onSubmit={async (chapterId, payload) => {
-            if (!token) {
-              return;
-            }
-
-            setIsSubmittingChapterEdit(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.updateAuthorChapter(token, chapterId, { ...payload, action: 'submit' });
-              setMessage('章节已重新提交审核');
-              await loadData(token);
-              await loadChapterVersions(token, chapterId);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '提交失败');
-              throw err;
-            } finally {
-              setIsSubmittingChapterEdit(false);
-            }
-          }}
-          onUpdateSchedule={async (chapterId, scheduledAt) => {
-            if (!token) {
-              return;
-            }
-            setIsSubmittingChapterEdit(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              const updated = await api.updateAuthorChapterSchedule(token, chapterId, scheduledAt);
-              await loadData(token);
-              setMessage(updated.status === 'PUBLISHED' ? '章节已立即发布' : '定时发布时间已更新');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '发布时间更新失败');
-              throw err;
-            } finally {
-              setIsSubmittingChapterEdit(false);
-            }
-          }}
-        />
-
-        <ChapterVersionPanel
-          chapter={selectedChapter}
-          disabled={isSubmittingChapterEdit || !token}
-          isLoading={isLoadingChapterVersions}
-          versions={chapterVersions}
-          onRestore={async (versionId) => {
-            if (!token || !selectedChapter) {
-              return;
-            }
-            setIsSubmittingChapterEdit(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              const restored = await api.restoreAuthorChapterVersion(
-                token,
-                selectedChapter.id,
-                versionId,
-              );
-              setNovels((current) =>
-                current.map((novel) => ({
-                  ...novel,
-                  chapters: novel.chapters?.map((chapter) =>
-                    chapter.id === restored.id ? { ...chapter, ...restored } : chapter,
-                  ),
-                })),
-              );
-              await loadChapterVersions(token, selectedChapter.id);
-              setMessage('历史版本已恢复为当前草稿，恢复前内容也已保存');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '版本恢复失败');
-              throw err;
-            } finally {
-              setIsSubmittingChapterEdit(false);
-            }
-          }}
-        />
-        </>}
-
-        {!isCreateNovelOpen && selectedNovel && workView === 'chapter' && <CreateChapterPanel
-          disabled={isSubmittingChapter || !token || novels.length === 0}
-          novel={selectedNovel}
-          volumes={selectedNovel?.volumes ?? []}
-          onSaveDraft={async (payload) => {
-            if (!token || !selectedNovel) {
-              return;
-            }
-
-            setIsSubmittingChapter(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              const chapter = await api.createAuthorChapter(token, selectedNovel.id, {
-                ...payload,
-                action: 'save',
-              });
-              setMessage('章节草稿已保存');
-              await loadData(token);
-              setSelectedChapterId(chapter.id);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '保存失败');
-              throw err;
-            } finally {
-              setIsSubmittingChapter(false);
-            }
-          }}
-          onSubmit={async (payload) => {
-            if (!token || !selectedNovel) {
-              return;
-            }
-
-            setIsSubmittingChapter(true);
-            setError(undefined);
-            setMessage(undefined);
-            try {
-              await api.createAuthorChapter(token, selectedNovel.id, {
-                ...payload,
-                action: 'submit',
-              });
-              setMessage('章节已提交审核');
-              await loadData(token);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : '提交失败');
-              throw err;
-            } finally {
-              setIsSubmittingChapter(false);
-            }
-          }}
-        />
-        }
-
-        {!isCreateNovelOpen && !selectedNovel && !isLoading && (
-          <div className="author-workspace-empty">
-            <h2>{'\u4ece\u65b0\u5efa\u4f5c\u54c1\u5f00\u59cb'}</h2>
-            <p>{'\u9009\u62e9\u5de6\u4fa7\u5df2\u6709\u4f5c\u54c1\uff0c\u6216\u521b\u5efa\u4e00\u90e8\u65b0\u4f5c\u54c1\u3002'}</p>
+        {(error || message) && (
+          <div className={error ? 'auth-error' : 'auth-message'} role={error ? 'alert' : 'status'}>
+            {error || message}
           </div>
         )}
+
+        {isNewChapter && (
+          <CreateChapterPanel
+            disabled={isSubmittingChapter || !token}
+            novel={selectedNovel}
+            volumes={selectedNovel.volumes ?? []}
+            token={token}
+            onSaveDraft={async (payload) => {
+              if (!token) {
+                return;
+              }
+              setIsSubmittingChapter(true);
+              setError(undefined);
+              setMessage(undefined);
+              try {
+                const chapter = await api.createAuthorChapter(token, selectedNovel.id, {
+                  ...payload,
+                  action: 'save',
+                });
+                await loadData(token);
+                setSelectedChapterId(chapter.id);
+                setMessage('章节草稿已保存');
+                navigate(`/write/${selectedNovel.id}/${chapter.id}`, { replace: true });
+              } catch (err) {
+                setError(err instanceof Error ? err.message : '保存失败');
+                throw err;
+              } finally {
+                setIsSubmittingChapter(false);
+              }
+            }}
+            onSubmit={async (payload) => {
+              if (!token) {
+                return;
+              }
+              setIsSubmittingChapter(true);
+              setError(undefined);
+              setMessage(undefined);
+              try {
+                const chapter = await api.createAuthorChapter(token, selectedNovel.id, {
+                  ...payload,
+                  action: 'submit',
+                });
+                await loadData(token);
+                setSelectedChapterId(chapter.id);
+                setMessage('章节已提交审核');
+                navigate(`/write/${selectedNovel.id}/${chapter.id}`, { replace: true });
+              } catch (err) {
+                setError(err instanceof Error ? err.message : '提交失败');
+                throw err;
+              } finally {
+                setIsSubmittingChapter(false);
+              }
+            }}
+          />
+        )}
+
+        {!isNewChapter && selectedChapter && (
+          <>
+            <EditChapterPanel
+              chapter={selectedChapter}
+              volumes={selectedNovel.volumes ?? []}
+              token={token}
+              disabled={isSubmittingChapterEdit || !token}
+              onSaveDraft={async (chapterId, payload, saveSource) => {
+                if (!token) {
+                  return;
+                }
+                const updated = await api.updateAuthorChapter(token, chapterId, {
+                  ...payload,
+                  action: 'save',
+                  saveSource,
+                });
+                setNovels((current) =>
+                  current.map((novel) => ({
+                    ...novel,
+                    chapters: novel.chapters?.map((chapter) =>
+                      chapter.id === chapterId ? { ...chapter, ...updated } : chapter,
+                    ),
+                  })),
+                );
+                await loadChapterVersions(token, chapterId);
+              }}
+              onSubmit={async (chapterId, payload) => {
+                if (!token) {
+                  return;
+                }
+                setIsSubmittingChapterEdit(true);
+                setError(undefined);
+                setMessage(undefined);
+                try {
+                  await api.updateAuthorChapter(token, chapterId, { ...payload, action: 'submit' });
+                  setMessage('章节已提交审核');
+                  await loadData(token);
+                  await loadChapterVersions(token, chapterId);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : '提交失败');
+                  throw err;
+                } finally {
+                  setIsSubmittingChapterEdit(false);
+                }
+              }}
+              onUpdateSchedule={async (chapterId, scheduledAt) => {
+                if (!token) {
+                  return;
+                }
+                setIsSubmittingChapterEdit(true);
+                setError(undefined);
+                setMessage(undefined);
+                try {
+                  const updated = await api.updateAuthorChapterSchedule(
+                    token,
+                    chapterId,
+                    scheduledAt,
+                  );
+                  await loadData(token);
+                  setMessage(
+                    updated.status === 'PUBLISHED' ? '章节已立即发布' : '定时发布时间已更新',
+                  );
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : '发布时间更新失败');
+                  throw err;
+                } finally {
+                  setIsSubmittingChapterEdit(false);
+                }
+              }}
+            />
+
+            <details className="chapter-writing-history">
+              <summary>
+                <History size={16} aria-hidden />
+                版本历史
+              </summary>
+              <ChapterVersionPanel
+                chapter={selectedChapter}
+                disabled={isSubmittingChapterEdit || !token}
+                isLoading={isLoadingChapterVersions}
+                versions={chapterVersions}
+                onRestore={async (versionId) => {
+                  if (!token) {
+                    return;
+                  }
+                  setIsSubmittingChapterEdit(true);
+                  try {
+                    const restored = await api.restoreAuthorChapterVersion(
+                      token,
+                      selectedChapter.id,
+                      versionId,
+                    );
+                    setNovels((current) =>
+                      current.map((novel) => ({
+                        ...novel,
+                        chapters: novel.chapters?.map((chapter) =>
+                          chapter.id === restored.id ? { ...chapter, ...restored } : chapter,
+                        ),
+                      })),
+                    );
+                    await loadChapterVersions(token, selectedChapter.id);
+                    setMessage('历史版本已恢复');
+                  } finally {
+                    setIsSubmittingChapterEdit(false);
+                  }
+                }}
+              />
+            </details>
+          </>
+        )}
+
+        {!isNewChapter && !selectedChapter && (
+          <AuthorState title="没有找到这个章节">
+            <button className="primary-link" type="button" onClick={() => navigate('/?view=works')}>
+              返回作品管理
+            </button>
+          </AuthorState>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <section className="author-center-shell">
+      <AuthorCenterSidebar
+        activeView={workspaceView}
+        expanded={expandedNav}
+        onToggle={(menu) => setExpandedNav((current) => ({ ...current, [menu]: !current[menu] }))}
+        onSelect={(view) => {
+          setWorkspaceView(view);
+          if (view !== 'works') {
+            setIsCreateNovelOpen(false);
+            setIsWorkDetailOpen(false);
+          }
+        }}
+        onCreateNovel={() => {
+          setWorkspaceView('works');
+          setIsCreateNovelOpen(true);
+          setIsWorkDetailOpen(false);
+          setWorkView('novel');
+        }}
+      />
+
+      <main className="author-page author-center-content">
+        <header className="topbar author-center-heading">
+          <div>
+            <p className="eyebrow">阅界创作中心</p>
+            <h1>{authorWorkspaceLabels[workspaceView]}</h1>
+          </div>
+          <button
+            className="ghost-button"
+            type="button"
+            onClick={() => token && loadData(token, dashboardDays)}
+          >
+            <RefreshCcw size={16} aria-hidden />
+            刷新
+          </button>
+        </header>
+
+        {(error || message) && (
+          <div className={error ? 'auth-error' : 'auth-message'} role={error ? 'alert' : 'status'}>
+            {error || message}
+          </div>
+        )}
+
+        {workspaceView === 'profile' && (
+          <AuthorProfilePanel
+            disabled={isOnboardingLoading}
+            profile={onboarding?.profile}
+            fallbackPenName={user?.nickname ?? ''}
+            onSave={saveAuthorProfile}
+          />
+        )}
+
+        {workspaceView === 'appeals' && token && <ContentAppealsPanel token={token} />}
+
+        {workspaceView === 'collection' && token && (
+          <AuthorCollectionTaskPanel
+            categories={categories}
+            token={token}
+            onImported={(result) =>
+              setMessage(`《${result.title}》已导入阅读端，共 ${result.chapterCount} 章`)
+            }
+          />
+        )}
+
+        {(workspaceView === 'home' || workspaceView === 'dashboard') && (
+          <AuthorDashboardPanel
+            dashboard={dashboard}
+            days={dashboardDays}
+            isLoading={isLoading || isDashboardLoading}
+            onChangeDays={(days) => {
+              setDashboardDays(days);
+              if (token) {
+                void loadDashboard(token, days);
+              }
+            }}
+            onSelectNovel={setSelectedNovelId}
+            selectedNovelId={selectedNovelId}
+          />
+        )}
+
+        {workspaceView === 'planning' && (
+          <AuthorCalendarPanel
+            calendar={calendar}
+            disabled={isUpdatingCalendar || !token}
+            isLoading={isLoading || isCalendarLoading}
+            month={calendarMonth}
+            novels={novels}
+            selectedNovelId={selectedNovelId}
+            onMonthChange={(month) => {
+              setCalendarMonth(month);
+              if (token) {
+                void loadCalendar(token, month);
+              }
+            }}
+            onCreate={async (novelId, payload) => {
+              if (!token) {
+                return;
+              }
+              setIsUpdatingCalendar(true);
+              setError(undefined);
+              setMessage(undefined);
+              try {
+                await api.createAuthorCalendarEvent(token, novelId, payload);
+                await loadCalendar(token, calendarMonth);
+                setMessage('创作计划已创建');
+              } catch (err) {
+                setError(err instanceof Error ? err.message : '创作计划创建失败');
+                throw err;
+              } finally {
+                setIsUpdatingCalendar(false);
+              }
+            }}
+            onUpdate={async (eventId, payload) => {
+              if (!token) {
+                return;
+              }
+              setIsUpdatingCalendar(true);
+              setError(undefined);
+              setMessage(undefined);
+              try {
+                await api.updateAuthorCalendarEvent(token, eventId, payload);
+                await loadCalendar(token, calendarMonth);
+                setMessage('创作计划已更新');
+              } catch (err) {
+                setError(err instanceof Error ? err.message : '创作计划更新失败');
+                throw err;
+              } finally {
+                setIsUpdatingCalendar(false);
+              }
+            }}
+            onDelete={async (eventId) => {
+              if (!token) {
+                return;
+              }
+              setIsUpdatingCalendar(true);
+              setError(undefined);
+              setMessage(undefined);
+              try {
+                await api.deleteAuthorCalendarEvent(token, eventId);
+                await loadCalendar(token, calendarMonth);
+                setMessage('创作计划已删除');
+              } catch (err) {
+                setError(err instanceof Error ? err.message : '创作计划删除失败');
+                throw err;
+              } finally {
+                setIsUpdatingCalendar(false);
+              }
+            }}
+          />
+        )}
+
+        {workspaceView === 'works' && (
+          <section className="author-workspace-layout">
+            <aside className="author-workspace-sidebar">
+              {!isWorkDetailOpen && !isCreateNovelOpen ? (
+                <>
+                  <NovelListPanel
+                    isLoading={isLoading}
+                    novels={novels}
+                    selectedNovelId={selectedNovelId}
+                    onSelect={(novelId) => {
+                      setSelectedNovelId(novelId);
+                      setIsCreateNovelOpen(false);
+                      setIsWorkDetailOpen(true);
+                      setWorkView('novel');
+                    }}
+                    onOpenSettings={(novelId) => {
+                      setSelectedNovelId(novelId);
+                      setIsCreateNovelOpen(false);
+                      setIsWorkDetailOpen(true);
+                      setWorkView('novel');
+                    }}
+                    onOpenCatalog={(novelId) => {
+                      setSelectedNovelId(novelId);
+                      setIsCreateNovelOpen(false);
+                      setIsWorkDetailOpen(true);
+                      setWorkView('catalog');
+                    }}
+                    onCreateChapter={(novelId) => navigate(`/write/${novelId}/new`)}
+                  />
+                  <button
+                    className="primary-link author-create-novel-button"
+                    type="button"
+                    onClick={() => {
+                      setIsCreateNovelOpen(true);
+                      setIsWorkDetailOpen(false);
+                      setWorkView('novel');
+                    }}
+                  >
+                    <BookPlus size={16} aria-hidden />
+                    {'\u65b0\u5efa\u4f5c\u54c1'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="ghost-button author-back-to-works"
+                  type="button"
+                  onClick={() => {
+                    setIsCreateNovelOpen(false);
+                    setIsWorkDetailOpen(false);
+                  }}
+                >
+                  <ChevronLeft size={16} aria-hidden />
+                  返回作品列表
+                </button>
+              )}
+            </aside>
+
+            <div
+              className={`author-workspace-main${
+                isCreateNovelOpen || isWorkDetailOpen ? '' : ' hidden'
+              }`}
+            >
+              {isCreateNovelOpen && (
+                <CreateNovelPanel
+                  categories={categories}
+                  disabled={isSubmittingNovel || !token}
+                  token={token}
+                  onSaveDraft={async (payload) => {
+                    if (!token) {
+                      return;
+                    }
+
+                    setIsSubmittingNovel(true);
+                    setError(undefined);
+                    setMessage(undefined);
+                    try {
+                      const novel = await api.createAuthorNovel(token, {
+                        ...payload,
+                        action: 'save',
+                      });
+                      setMessage('作品草稿已保存');
+                      await loadData(token);
+                      setSelectedNovelId(novel.id);
+                      setIsCreateNovelOpen(false);
+                      setIsWorkDetailOpen(true);
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : '保存失败');
+                      throw err;
+                    } finally {
+                      setIsSubmittingNovel(false);
+                    }
+                  }}
+                  onSubmit={async (payload) => {
+                    if (!token) {
+                      return;
+                    }
+
+                    setIsSubmittingNovel(true);
+                    setError(undefined);
+                    setMessage(undefined);
+                    try {
+                      const novel = await api.createAuthorNovel(token, {
+                        ...payload,
+                        action: 'submit',
+                      });
+                      setMessage('作品已提交审核');
+                      await loadData(token);
+                      setSelectedNovelId(novel.id);
+                      setIsCreateNovelOpen(false);
+                      setIsWorkDetailOpen(true);
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : '提交失败');
+                      throw err;
+                    } finally {
+                      setIsSubmittingNovel(false);
+                    }
+                  }}
+                />
+              )}
+
+              {!isCreateNovelOpen && selectedNovel && (
+                <>
+                  <nav
+                    className="author-work-tabs"
+                    aria-label="\u4f5c\u54c1\u7ba1\u7406\u5de5\u5177"
+                  >
+                    {(['novel', 'catalog'] as AuthorWorkView[]).map((view) => (
+                      <button
+                        aria-current={workView === view ? 'page' : undefined}
+                        className={workView === view ? 'active' : ''}
+                        key={view}
+                        type="button"
+                        onClick={() => setWorkView(view)}
+                      >
+                        {authorWorkLabels[view]}
+                      </button>
+                    ))}
+                  </nav>
+                  <div className="author-workspace-selection">
+                    <span>{selectedNovel.title}</span>
+                    <button
+                      className="primary-link author-quick-create-chapter"
+                      type="button"
+                      onClick={() => navigate(`/write/${selectedNovel.id}/new`)}
+                    >
+                      <FilePlus2 size={16} aria-hidden />
+                      创建章节
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {!isCreateNovelOpen && selectedNovel && workView === 'novel' && (
+                <>
+                  <EditNovelPanel
+                    categories={categories}
+                    disabled={isSubmittingEdit || isUpdatingNovelLifecycle || !token}
+                    novel={selectedNovel}
+                    token={token}
+                    onSaveDraft={async (novelId, payload) => {
+                      if (!token) {
+                        return;
+                      }
+
+                      const updated = await api.updateAuthorNovel(token, novelId, {
+                        ...payload,
+                        action: 'save',
+                      });
+                      setNovels((current) =>
+                        current.map((novel) =>
+                          novel.id === novelId
+                            ? { ...novel, ...updated, chapters: novel.chapters }
+                            : novel,
+                        ),
+                      );
+                    }}
+                    onSubmit={async (novelId, payload) => {
+                      if (!token) {
+                        return;
+                      }
+
+                      setIsSubmittingEdit(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        const novel = await api.updateAuthorNovel(token, novelId, {
+                          ...payload,
+                          action: 'submit',
+                        });
+                        setMessage('作品已重新提交审核');
+                        await loadData(token);
+                        setSelectedNovelId(novel.id);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '提交失败');
+                        throw err;
+                      } finally {
+                        setIsSubmittingEdit(false);
+                      }
+                    }}
+                    onDelete={async (novelId) => {
+                      if (!token) {
+                        return;
+                      }
+
+                      setIsUpdatingNovelLifecycle(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        await api.deleteAuthorNovel(token, novelId);
+                        const remainingNovels = novels.filter((novel) => novel.id !== novelId);
+                        setNovels(remainingNovels);
+                        setSelectedNovelId(remainingNovels[0]?.id || '');
+                        setIsWorkDetailOpen(false);
+                        setMessage('作品已删除');
+                        await loadDashboard(token, dashboardDays);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '删除失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingNovelLifecycle(false);
+                      }
+                    }}
+                    onLifecycle={async (novelId, action) => {
+                      if (!token) {
+                        return;
+                      }
+
+                      setIsUpdatingNovelLifecycle(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        const updated = await api.updateAuthorNovelLifecycle(
+                          token,
+                          novelId,
+                          action,
+                        );
+                        setNovels((current) =>
+                          current.map((novel) =>
+                            novel.id === novelId ? { ...novel, ...updated } : novel,
+                          ),
+                        );
+                        setMessage(action === 'complete' ? '作品已设为完结' : '作品已恢复连载');
+                        await loadDashboard(token, dashboardDays);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '状态更新失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingNovelLifecycle(false);
+                      }
+                    }}
+                  />
+
+                  <AnnouncementManagerPanel
+                    disabled={isUpdatingAnnouncements || !token}
+                    novel={selectedNovel}
+                    onCreate={async (payload) => {
+                      if (!token || !selectedNovel) {
+                        return;
+                      }
+                      setIsUpdatingAnnouncements(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        await api.createAuthorAnnouncement(token, selectedNovel.id, payload);
+                        await loadData(token);
+                        setMessage(
+                          payload.action === 'publish' ? '作品公告已发布' : '公告草稿已保存',
+                        );
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '公告保存失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingAnnouncements(false);
+                      }
+                    }}
+                    onUpdate={async (announcementId, payload) => {
+                      if (!token) {
+                        return;
+                      }
+                      setIsUpdatingAnnouncements(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        await api.updateAuthorAnnouncement(token, announcementId, payload);
+                        await loadData(token);
+                        setMessage(
+                          payload.action === 'publish' ? '作品公告已发布' : '公告草稿已保存',
+                        );
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '公告更新失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingAnnouncements(false);
+                      }
+                    }}
+                    onDelete={async (announcementId) => {
+                      if (!token) {
+                        return;
+                      }
+                      setIsUpdatingAnnouncements(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        await api.deleteAuthorAnnouncement(token, announcementId);
+                        await loadData(token);
+                        setMessage('作品公告已删除');
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '公告删除失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingAnnouncements(false);
+                      }
+                    }}
+                  />
+                </>
+              )}
+
+              {!isCreateNovelOpen && selectedNovel && workView === 'catalog' && (
+                <>
+                  <VolumeManagerPanel
+                    disabled={isUpdatingVolumes || !token}
+                    novel={selectedNovel}
+                    onCreate={async (payload) => {
+                      if (!token || !selectedNovel) {
+                        return;
+                      }
+                      setIsUpdatingVolumes(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        await api.createAuthorVolume(token, selectedNovel.id, payload);
+                        await loadData(token);
+                        setMessage('分卷已创建');
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '分卷创建失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingVolumes(false);
+                      }
+                    }}
+                    onUpdate={async (volumeId, payload) => {
+                      if (!token) {
+                        return;
+                      }
+                      setIsUpdatingVolumes(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        await api.updateAuthorVolume(token, volumeId, payload);
+                        await loadData(token);
+                        setMessage('分卷已更新');
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '分卷更新失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingVolumes(false);
+                      }
+                    }}
+                    onDelete={async (volumeId) => {
+                      if (!token) {
+                        return;
+                      }
+                      setIsUpdatingVolumes(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        await api.deleteAuthorVolume(token, volumeId);
+                        await loadData(token);
+                        setMessage('分卷已删除');
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '分卷删除失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingVolumes(false);
+                      }
+                    }}
+                    onReorder={async (volumeIds) => {
+                      if (!token || !selectedNovel) {
+                        return;
+                      }
+                      setIsUpdatingVolumes(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        await api.reorderAuthorVolumes(token, selectedNovel.id, volumeIds);
+                        await loadData(token);
+                        setMessage('分卷顺序已更新');
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '分卷排序失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingVolumes(false);
+                      }
+                    }}
+                  />
+
+                  <ChapterListPanel
+                    chapters={selectedNovel?.chapters ?? []}
+                    volumes={selectedNovel?.volumes ?? []}
+                    disabled={isUpdatingChapters || !token}
+                    selectedChapterId={selectedChapterId}
+                    onSelect={(chapterId) => navigate(`/write/${selectedNovel.id}/${chapterId}`)}
+                    onDelete={async (chapterIds) => {
+                      if (!token || !selectedNovel) {
+                        return;
+                      }
+
+                      setIsUpdatingChapters(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        const result = await api.deleteAuthorChapters(
+                          token,
+                          selectedNovel.id,
+                          chapterIds,
+                        );
+                        setNovels((current) =>
+                          current.map((novel) =>
+                            novel.id === selectedNovel.id
+                              ? {
+                                  ...novel,
+                                  chapters: result.chapters,
+                                  _count: { ...novel._count, chapters: result.chapters.length },
+                                }
+                              : novel,
+                          ),
+                        );
+                        setSelectedChapterId((current) =>
+                          result.chapters.some((chapter) => chapter.id === current)
+                            ? current
+                            : result.chapters[0]?.id || '',
+                        );
+                        setMessage(`已将 ${result.deletedCount} 个章节移入回收站`);
+                        await loadChapterTrash(token, selectedNovel.id);
+                        await loadDashboard(token, dashboardDays);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '删除失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingChapters(false);
+                      }
+                    }}
+                    onReorder={async (chapterIds) => {
+                      if (!token || !selectedNovel) {
+                        return;
+                      }
+
+                      setIsUpdatingChapters(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        const chapters = await api.reorderAuthorChapters(
+                          token,
+                          selectedNovel.id,
+                          chapterIds,
+                        );
+                        setNovels((current) =>
+                          current.map((novel) =>
+                            novel.id === selectedNovel.id ? { ...novel, chapters } : novel,
+                          ),
+                        );
+                        setMessage('章节顺序已更新');
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '排序失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingChapters(false);
+                      }
+                    }}
+                    onAssignVolume={async (chapterId, volumeId) => {
+                      if (!token) {
+                        return;
+                      }
+                      setIsUpdatingChapters(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        await api.assignAuthorChapterVolume(token, chapterId, volumeId);
+                        await loadData(token);
+                        setMessage('章节分卷已更新');
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '章节归卷失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingChapters(false);
+                      }
+                    }}
+                  />
+
+                  <ChapterTrashPanel
+                    chapters={deletedChapters}
+                    disabled={isUpdatingChapters || !token}
+                    isLoading={isLoadingChapterTrash}
+                    onRestore={async (chapterId) => {
+                      if (!token || !selectedNovel) {
+                        return;
+                      }
+                      setIsUpdatingChapters(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        await api.restoreAuthorChapter(token, chapterId);
+                        await loadData(token);
+                        await loadChapterTrash(token, selectedNovel.id);
+                        setSelectedChapterId(chapterId);
+                        setMessage('章节已从回收站恢复，并追加到章节列表末尾');
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '章节恢复失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingChapters(false);
+                      }
+                    }}
+                    onPermanentDelete={async (chapterId) => {
+                      if (!token || !selectedNovel) {
+                        return;
+                      }
+                      setIsUpdatingChapters(true);
+                      setError(undefined);
+                      setMessage(undefined);
+                      try {
+                        await api.permanentlyDeleteAuthorChapter(token, chapterId);
+                        await loadChapterTrash(token, selectedNovel.id);
+                        setMessage('章节已永久删除');
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : '永久删除失败');
+                        throw err;
+                      } finally {
+                        setIsUpdatingChapters(false);
+                      }
+                    }}
+                  />
+                </>
+              )}
+
+              {!isCreateNovelOpen && !selectedNovel && !isLoading && (
+                <div className="author-workspace-empty">
+                  <h2>{'\u4ece\u65b0\u5efa\u4f5c\u54c1\u5f00\u59cb'}</h2>
+                  <p>
+                    {
+                      '\u9009\u62e9\u5de6\u4fa7\u5df2\u6709\u4f5c\u54c1\uff0c\u6216\u521b\u5efa\u4e00\u90e8\u65b0\u4f5c\u54c1\u3002'
+                    }
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+      </main>
+    </section>
+  );
+}
+
+function AuthorCenterSidebar({
+  activeView,
+  expanded,
+  onToggle,
+  onSelect,
+  onCreateNovel,
+}: {
+  activeView: AuthorWorkspaceView;
+  expanded: { works: boolean; data: boolean };
+  onToggle(menu: 'works' | 'data'): void;
+  onSelect(view: AuthorWorkspaceView): void;
+  onCreateNovel(): void;
+}) {
+  return (
+    <aside className="author-center-sidebar">
+      <nav className="author-center-nav" aria-label="作者中心导航">
+        <button
+          className={`author-nav-primary${activeView === 'home' ? ' active' : ''}`}
+          type="button"
+          onClick={() => onSelect('home')}
+        >
+          <BookOpen size={18} aria-hidden />
+          <span>工作台</span>
+        </button>
+
+        <div className="author-nav-group">
+          <button
+            className="author-nav-primary"
+            type="button"
+            aria-expanded={expanded.works}
+            onClick={() => onToggle('works')}
+          >
+            <Layers3 size={18} aria-hidden />
+            <span>作品管理</span>
+            <ChevronRight className={expanded.works ? 'expanded' : ''} size={16} aria-hidden />
+          </button>
+          {expanded.works && (
+            <div className="author-nav-children">
+              <button
+                className={activeView === 'works' ? 'active' : ''}
+                type="button"
+                onClick={() => onSelect('works')}
+              >
+                小说作品
+              </button>
+              <button type="button" onClick={onCreateNovel}>
+                创建作品
+              </button>
+              <button
+                className={activeView === 'collection' ? 'active' : ''}
+                type="button"
+                onClick={() => onSelect('collection')}
+              >
+                采集任务
+              </button>
+            </div>
+          )}
         </div>
-      </section>}
+
+        <div className="author-nav-group">
+          <button
+            className="author-nav-primary"
+            type="button"
+            aria-expanded={expanded.data}
+            onClick={() => onToggle('data')}
+          >
+            <BarChart3 size={18} aria-hidden />
+            <span>数据中心</span>
+            <ChevronRight className={expanded.data ? 'expanded' : ''} size={16} aria-hidden />
+          </button>
+          {expanded.data && (
+            <div className="author-nav-children">
+              <button
+                className={activeView === 'dashboard' ? 'active' : ''}
+                type="button"
+                onClick={() => onSelect('dashboard')}
+              >
+                数据概览
+              </button>
+              <button
+                className={activeView === 'appeals' ? 'active' : ''}
+                type="button"
+                onClick={() => onSelect('appeals')}
+              >
+                内容申诉
+              </button>
+            </div>
+          )}
+        </div>
+
+        <button
+          className={`author-nav-primary${activeView === 'planning' ? ' active' : ''}`}
+          type="button"
+          onClick={() => onSelect('planning')}
+        >
+          <CalendarDays size={18} aria-hidden />
+          <span>创作计划</span>
+        </button>
+        <button
+          className={`author-nav-primary${activeView === 'profile' ? ' active' : ''}`}
+          type="button"
+          onClick={() => onSelect('profile')}
+        >
+          <BadgeCheck size={18} aria-hidden />
+          <span>作者资料</span>
+        </button>
+      </nav>
+    </aside>
+  );
+}
+
+type CollectionSourceType = 'wikisource' | 'json' | 'html';
+
+type CollectionMapping = {
+  titlePath: string;
+  summaryPath: string;
+  chaptersPath: string;
+  chapterTitlePath: string;
+  chapterContentPath: string;
+  chapterUrlPath: string;
+  chapterIdPath: string;
+  titleSelector: string;
+  summarySelector: string;
+  chapterLinkSelector: string;
+  chapterContentSelector: string;
+};
+
+function jsonItemPath(path: string) {
+  const marker = path.indexOf('[0]');
+  if (marker < 0) return path;
+  return path.slice(marker + 3).replace(/^\./u, '');
+}
+
+function CollectionMappingField({
+  id,
+  label,
+  value,
+  options,
+  placeholder,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  options?: string[];
+  placeholder?: string;
+  onChange(value: string): void;
+}) {
+  const listId = `${id}-options`;
+  return (
+    <label>
+      {label}
+      <input
+        list={options?.length ? listId : undefined}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {options && options.length > 0 && (
+        <datalist id={listId}>
+          {options.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
+      )}
+    </label>
+  );
+}
+
+function AuthorCollectionTaskPanel({
+  categories,
+  token,
+  onImported,
+}: {
+  categories: Category[];
+  token: string;
+  onImported(result: AuthorCollectionTaskResult): void;
+}) {
+  const [sourceType, setSourceType] = useState<CollectionSourceType>('wikisource');
+  const [title, setTitle] = useState('');
+  const [sourceAuthor, setSourceAuthor] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [maxChapters, setMaxChapters] = useState(20);
+  const [startChapter, setStartChapter] = useState(1);
+  const [endChapter, setEndChapter] = useState<number | ''>('');
+  const [rightsConfirmed, setRightsConfirmed] = useState(false);
+  const [analysis, setAnalysis] = useState<AuthorCollectionHtmlAnalysis | AuthorCollectionJsonAnalysis>();
+  const [mapping, setMapping] = useState<CollectionMapping>({
+    titlePath: '',
+    summaryPath: '',
+    chaptersPath: '',
+    chapterTitlePath: '',
+    chapterContentPath: '',
+    chapterUrlPath: '',
+    chapterIdPath: '',
+    titleSelector: '#info h1',
+    summarySelector: '#intro',
+    chapterLinkSelector: 'a[rel="chapter"]',
+    chapterContentSelector: '#booktxt',
+  });
+  const [preview, setPreview] = useState<AuthorCollectionTaskPreview>();
+  const [result, setResult] = useState<AuthorCollectionTaskResult>();
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isCommitting, setIsCommitting] = useState(false);
+  const [localError, setLocalError] = useState<string>();
+
+  const htmlAnalysis = sourceType === 'html' && analysis
+    ? (analysis as AuthorCollectionHtmlAnalysis)
+    : undefined;
+  const jsonAnalysis = sourceType === 'json' && analysis
+    ? (analysis as AuthorCollectionJsonAnalysis)
+    : undefined;
+
+  useEffect(() => {
+    setCategoryId((current) => current || categories[0]?.id || '');
+  }, [categories]);
+
+  function changeSourceType(next: CollectionSourceType) {
+    setSourceType(next);
+    setAnalysis(undefined);
+    setLocalError(undefined);
+    setPreview(undefined);
+  }
+
+  async function analyzeSource() {
+    const url = sourceUrl.trim();
+    if (!url) {
+      setLocalError('请先输入要分析的来源网址。');
+      return;
+    }
+    setIsAnalyzing(true);
+    setLocalError(undefined);
+    try {
+      if (sourceType === 'html') {
+        const analyzed = await api.analyzeHtmlCollectionSource(token, url);
+        setAnalysis(analyzed);
+        setMapping((current) => ({
+          ...current,
+          titleSelector: analyzed.candidates.titleSelectors[0] ?? current.titleSelector,
+          summarySelector: analyzed.candidates.summarySelectors[0] ?? current.summarySelector,
+          chapterLinkSelector: analyzed.candidates.chapterLinkSelectors[0] ?? current.chapterLinkSelector,
+          chapterContentSelector: analyzed.candidates.contentSelectors[0] ?? current.chapterContentSelector,
+        }));
+      } else {
+        const analyzed = await api.analyzeJsonCollectionSource(token, url);
+        setAnalysis(analyzed);
+        setMapping((current) => ({
+          ...current,
+          titlePath: analyzed.candidates.titlePaths[0] ?? current.titlePath,
+          summaryPath: analyzed.candidates.summaryPaths[0] ?? current.summaryPath,
+          chaptersPath: analyzed.candidates.chapterArrayPaths[0] ?? current.chaptersPath,
+          chapterTitlePath: jsonItemPath(analyzed.candidates.titlePaths.find((path) => path.includes('[0]')) ?? current.chapterTitlePath),
+          chapterContentPath: jsonItemPath(analyzed.candidates.contentPaths.find((path) => path.includes('[0]')) ?? current.chapterContentPath),
+          chapterUrlPath: jsonItemPath(analyzed.candidates.urlPaths.find((path) => path.includes('[0]')) ?? current.chapterUrlPath),
+        }));
+      }
+    } catch (error) {
+      setAnalysis(undefined);
+      setLocalError(error instanceof Error ? error.message : '页面结构分析失败');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }
+
+  async function createPreview(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!rightsConfirmed) {
+      setLocalError('请先确认作品属于公版内容，或你已经获得明确导入授权。');
+      return;
+    }
+    if (sourceType !== 'wikisource' && !sourceUrl.trim()) {
+      setLocalError('请输入来源网址，并先完成页面结构分析。');
+      return;
+    }
+    if (sourceType === 'json' && (!mapping.titlePath || !mapping.chaptersPath || !mapping.chapterTitlePath || !mapping.chapterContentPath)) {
+      setLocalError('JSON 采集还缺少必要字段映射，请先分析接口并补全标题、章节数组、章节标题和正文路径。');
+      return;
+    }
+    if (endChapter !== '' && endChapter < startChapter) {
+      setLocalError('结束章节不能小于起始章节。');
+      return;
+    }
+
+    setIsPreviewing(true);
+    setLocalError(undefined);
+    setPreview(undefined);
+    setResult(undefined);
+    try {
+      const task = await api.previewAuthorCollectionTask(token, {
+        sourceType,
+        title: title.trim(),
+        categoryId,
+        sourceUrl: sourceType === 'wikisource' ? undefined : sourceUrl.trim(),
+        sourceAuthor: sourceAuthor.trim() || undefined,
+        ...(sourceType === 'json'
+          ? {
+              titlePath: mapping.titlePath,
+              summaryPath: mapping.summaryPath || undefined,
+              chaptersPath: mapping.chaptersPath,
+              chapterTitlePath: mapping.chapterTitlePath,
+              chapterContentPath: mapping.chapterContentPath,
+              chapterUrlPath: mapping.chapterUrlPath || undefined,
+              chapterIdPath: mapping.chapterIdPath || undefined,
+            }
+          : sourceType === 'html'
+            ? {
+                titleSelector: mapping.titleSelector || undefined,
+                summarySelector: mapping.summarySelector || undefined,
+                chapterLinkSelector: mapping.chapterLinkSelector || undefined,
+                chapterContentSelector: mapping.chapterContentSelector || undefined,
+              }
+            : {}),
+        maxChapters,
+        startChapter,
+        endChapter: endChapter === '' ? undefined : endChapter,
+        rightsConfirmed: true,
+      });
+      setPreview(task);
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : '采集任务创建失败');
+    } finally {
+      setIsPreviewing(false);
+    }
+  }
+
+  async function commitTask() {
+    if (!preview || !rightsConfirmed) return;
+    setIsCommitting(true);
+    setLocalError(undefined);
+    try {
+      const imported = await api.commitAuthorCollectionTask(token, preview.taskId);
+      setResult(imported);
+      setPreview(undefined);
+      onImported(imported);
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : '采集内容导入失败');
+    } finally {
+      setIsCommitting(false);
+    }
+  }
+
+  function resetTask() {
+    setSourceType('wikisource');
+    setTitle('');
+    setSourceAuthor('');
+    setSourceUrl('');
+    setMaxChapters(20);
+    setStartChapter(1);
+    setEndChapter('');
+    setRightsConfirmed(false);
+    setAnalysis(undefined);
+    setMapping({
+      titlePath: '',
+      summaryPath: '',
+      chaptersPath: '',
+      chapterTitlePath: '',
+      chapterContentPath: '',
+      chapterUrlPath: '',
+      chapterIdPath: '',
+      titleSelector: '#info h1',
+      summarySelector: '#intro',
+      chapterLinkSelector: 'a[rel="chapter"]',
+      chapterContentSelector: '#booktxt',
+    });
+    setPreview(undefined);
+    setResult(undefined);
+    setLocalError(undefined);
+  }
+
+  return (
+    <section className="collection-task-page">
+      <form className="panel author-form collection-task-form" onSubmit={createPreview}>
+        <div className="section-title">
+          <div>
+            <p className="eyebrow">采集任务</p>
+            <h2>创建采集任务</h2>
+          </div>
+          <Globe2 size={20} aria-hidden />
+        </div>
+        <p className="collection-task-intro">
+          先选择来源类型。对于 HTML 页面或 JSON 接口，输入网址后点击“分析页面”，系统会给出可用的字段/选择器，你可以手动校正后再生成章节预览。
+        </p>
+        <label>
+          采集来源
+          <select value={sourceType} onChange={(event) => changeSourceType(event.target.value as CollectionSourceType)}>
+            <option value="wikisource">中文维基文库（公版）</option>
+            <option value="html">HTML 页面（需确认授权）</option>
+            <option value="json">JSON 接口（需确认授权）</option>
+          </select>
+        </label>
+        {sourceType !== 'wikisource' && (
+          <div className="collection-source-url-row">
+            <label>
+              来源网址
+              <input
+                required
+                type="url"
+                placeholder={sourceType === 'html' ? '例如：https://example.com/book/list.html' : '例如：https://example.com/api/book/1'}
+                value={sourceUrl}
+                onChange={(event) => {
+                  setSourceUrl(event.target.value);
+                  setAnalysis(undefined);
+                }}
+              />
+            </label>
+            <button className="ghost-button collection-analyze-button" type="button" onClick={analyzeSource} disabled={isAnalyzing}>
+              <RefreshCcw className={isAnalyzing ? 'is-spinning' : ''} size={15} aria-hidden />
+              {isAnalyzing ? '分析中...' : '分析页面'}
+            </button>
+          </div>
+        )}
+        <div className="collection-task-fields">
+          <label>
+            目标书名
+            <input
+              required
+              maxLength={120}
+              placeholder={sourceType === 'html' ? '分类页请填写要采集的作品名' : '例如：红楼梦'}
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </label>
+          <label>
+            原作者
+            <input
+              maxLength={80}
+              placeholder="例如：曹雪芹"
+              value={sourceAuthor}
+              onChange={(event) => setSourceAuthor(event.target.value)}
+            />
+          </label>
+          <label>
+            阅读端分类
+            <select
+              required
+              value={categoryId}
+              onChange={(event) => setCategoryId(event.target.value)}
+            >
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            起始章节
+            <input
+              required
+              type="number"
+              min={1}
+              max={1000000}
+              value={startChapter}
+              onChange={(event) => setStartChapter(Math.max(1, Number(event.target.value) || 1))}
+            />
+          </label>
+          <label>
+            结束章节（可选）
+            <input
+              type="number"
+              min={startChapter}
+              max={1000000}
+              placeholder={`默认采集 ${startChapter}-${startChapter + maxChapters - 1} 章`}
+              value={endChapter}
+              onChange={(event) => setEndChapter(event.target.value ? Math.max(startChapter, Number(event.target.value)) : '')}
+            />
+          </label>
+          <label>
+            未填写结束章节时，最多采集
+            <input
+              required
+              type="number"
+              min={1}
+              max={50}
+              value={maxChapters}
+              onChange={(event) => setMaxChapters(Number(event.target.value))}
+            />
+          </label>
+        </div>
+        {htmlAnalysis && (
+          <div className="collection-analysis" role="status">
+            <div className="collection-analysis-heading">
+              <div>
+                <strong>HTML 结构分析完成</strong>
+                <span>页面标题：{htmlAnalysis.title || '未识别'} · 链接 {htmlAnalysis.counts.links} 个 · 疑似章节链接 {htmlAnalysis.counts.chapterLinks} 个</span>
+              </div>
+              <small>可直接使用候选值，也可以手动输入选择器</small>
+            </div>
+            <div className="collection-analysis-grid">
+              <CollectionMappingField id="html-title" label="书名选择器" value={mapping.titleSelector} options={htmlAnalysis.candidates.titleSelectors} placeholder="#info h1" onChange={(value) => setMapping((current) => ({ ...current, titleSelector: value }))} />
+              <CollectionMappingField id="html-summary" label="简介选择器" value={mapping.summarySelector} options={htmlAnalysis.candidates.summarySelectors} placeholder="#intro" onChange={(value) => setMapping((current) => ({ ...current, summarySelector: value }))} />
+              <CollectionMappingField id="html-links" label="章节链接选择器" value={mapping.chapterLinkSelector} options={htmlAnalysis.candidates.chapterLinkSelectors} placeholder={'a[rel="chapter"]'} onChange={(value) => setMapping((current) => ({ ...current, chapterLinkSelector: value }))} />
+              <CollectionMappingField id="html-content" label="章节正文选择器" value={mapping.chapterContentSelector} options={htmlAnalysis.candidates.contentSelectors} placeholder="#booktxt" onChange={(value) => setMapping((current) => ({ ...current, chapterContentSelector: value }))} />
+            </div>
+          </div>
+        )}
+        {jsonAnalysis && (
+          <div className="collection-analysis" role="status">
+            <div className="collection-analysis-heading">
+              <div>
+                <strong>JSON 结构分析完成</strong>
+                <span>根节点类型：{jsonAnalysis.rootType} · 字段 {jsonAnalysis.fields.length} 个 · 数组 {jsonAnalysis.arrays.length} 个</span>
+              </div>
+              <small>章节字段路径相对于章节数组中的单条记录</small>
+            </div>
+            <div className="collection-analysis-grid">
+              <CollectionMappingField id="json-title" label="书名路径" value={mapping.titlePath} options={jsonAnalysis.candidates.titlePaths} placeholder="$.title" onChange={(value) => setMapping((current) => ({ ...current, titlePath: value }))} />
+              <CollectionMappingField id="json-summary" label="简介路径（可选）" value={mapping.summaryPath} options={jsonAnalysis.candidates.summaryPaths} placeholder="$.summary" onChange={(value) => setMapping((current) => ({ ...current, summaryPath: value }))} />
+              <CollectionMappingField id="json-chapters" label="章节数组路径" value={mapping.chaptersPath} options={jsonAnalysis.candidates.chapterArrayPaths} placeholder="$.chapters" onChange={(value) => setMapping((current) => ({ ...current, chaptersPath: value }))} />
+              <CollectionMappingField id="json-chapter-title" label="章节标题路径" value={mapping.chapterTitlePath} options={jsonAnalysis.candidates.titlePaths.filter((path: string) => path.includes('[0]')).map(jsonItemPath)} placeholder="title" onChange={(value) => setMapping((current) => ({ ...current, chapterTitlePath: value }))} />
+              <CollectionMappingField id="json-content" label="章节正文路径" value={mapping.chapterContentPath} options={jsonAnalysis.candidates.contentPaths.filter((path: string) => path.includes('[0]')).map(jsonItemPath)} placeholder="content" onChange={(value) => setMapping((current) => ({ ...current, chapterContentPath: value }))} />
+              <CollectionMappingField id="json-url" label="章节链接路径（可选）" value={mapping.chapterUrlPath} options={jsonAnalysis.candidates.urlPaths.filter((path: string) => path.includes('[0]')).map(jsonItemPath)} placeholder="url" onChange={(value) => setMapping((current) => ({ ...current, chapterUrlPath: value }))} />
+              <CollectionMappingField id="json-id" label="章节 ID 路径（可选）" value={mapping.chapterIdPath} placeholder="id" onChange={(value) => setMapping((current) => ({ ...current, chapterIdPath: value }))} />
+            </div>
+          </div>
+        )}
+        <label className="collection-rights-confirmation">
+          <input
+            type="checkbox"
+            checked={rightsConfirmed}
+            onChange={(event) => setRightsConfirmed(event.target.checked)}
+          />
+          <span>
+            我确认该作品属于公版内容，或我已经取得可在本平台复制、发布的明确授权。
+          </span>
+        </label>
+        <p className="collection-task-guardrail">
+          仅支持白名单域名；不会绕过登录、付费墙、验证码或网站反爬措施。请只导入公版或你拥有明确授权的内容。
+        </p>
+        {localError && (
+          <p className="auth-error" role="alert">
+            {localError}
+          </p>
+        )}
+        <button
+          className="primary-link"
+          type="submit"
+          disabled={isPreviewing || isCommitting || !categoryId}
+        >
+          <RefreshCcw className={isPreviewing ? 'is-spinning' : ''} size={16} aria-hidden />
+          {isPreviewing ? '正在联网采集...' : '采集并生成预览'}
+        </button>
+      </form>
+
+      {preview && (
+        <section className="panel collection-task-preview">
+          <div className="collection-preview-heading">
+            <div className="collection-preview-book">
+              <NovelCover novel={{ title: preview.title, coverUrl: preview.coverUrl }} size="mini" />
+              <div>
+                <p className="eyebrow">待确认任务</p>
+                <h2>{preview.title}</h2>
+                <p>
+                  {preview.sourceAuthor ? `原作者：${preview.sourceAuthor} · ` : ''}
+                  分类：{preview.category.name}
+                </p>
+              </div>
+            </div>
+            <span className={preview.isComplete ? 'complete' : 'partial'}>
+              {preview.isComplete ? '完整目录' : '部分章节'}
+            </span>
+          </div>
+          <div className="collection-preview-stats">
+            <span>
+              <strong>{preview.chapterCount}</strong> 本次章节
+            </span>
+            <span>
+              <strong>{preview.wordCount.toLocaleString('zh-CN')}</strong> 字
+            </span>
+            <span>
+              来源发现 <strong>{preview.discoveredChapterCount}</strong> 个页面
+            </span>
+          </div>
+          <p className="collection-preview-summary">{preview.summary}</p>
+          <div className="collection-source-line">
+            <a href={preview.sourceUrl} target="_blank" rel="noreferrer">
+              查看 {preview.sourceName} 来源页
+            </a>
+            <span>{preview.sourceLicense}</span>
+            <small>预览有效至 {new Date(preview.expiresAt).toLocaleTimeString('zh-CN')}</small>
+          </div>
+          <ol className="collection-chapter-list">
+            {preview.chapters.map((chapter, index) => (
+              <li key={chapter.externalId}>
+                <span>{chapter.orderIndex ?? index + 1}</span>
+                <a href={chapter.sourceUrl} target="_blank" rel="noreferrer">
+                  {chapter.title}
+                </a>
+                <small>{chapter.wordCount.toLocaleString('zh-CN')} 字</small>
+              </li>
+            ))}
+          </ol>
+          <div className="collection-preview-actions">
+            <button className="ghost-button" type="button" onClick={() => setPreview(undefined)}>
+              返回修改
+            </button>
+            <button
+              className="primary-link"
+              type="button"
+              disabled={isCommitting}
+              onClick={commitTask}
+            >
+              <BookCheck size={16} aria-hidden />
+              {isCommitting ? '正在写入阅读端...' : '确认导入阅读端'}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {result && (
+        <section className="panel collection-task-success" role="status">
+          <CircleCheckBig size={30} aria-hidden />
+          <div>
+            <p className="eyebrow">采集任务完成</p>
+            <h2>《{result.title}》已进入阅读端</h2>
+            <p>
+              共导入 {result.chapterCount} 章、{result.wordCount.toLocaleString('zh-CN')} 字，来源为
+              {result.sourceName}。
+            </p>
+            <div className="collection-preview-actions">
+              <a
+                className="primary-link"
+                href={`${readerPortalUrl}/novels/${result.novelId}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                查看阅读端作品
+              </a>
+              <button className="ghost-button" type="button" onClick={resetTask}>
+                创建新的采集任务
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
     </section>
   );
 }
@@ -1721,14 +2562,20 @@ function NovelListPanel({
   novels,
   selectedNovelId,
   onSelect,
+  onOpenSettings,
+  onOpenCatalog,
+  onCreateChapter,
 }: {
   isLoading: boolean;
   novels: AuthorNovel[];
   selectedNovelId: string;
   onSelect(novelId: string): void;
+  onOpenSettings(novelId: string): void;
+  onOpenCatalog(novelId: string): void;
+  onCreateChapter(novelId: string): void;
 }) {
   return (
-    <section className="panel">
+    <section className="panel author-novel-library">
       <div className="section-title">
         <h2>我的作品</h2>
         <span className="muted">{novels.length} 本</span>
@@ -1737,23 +2584,41 @@ function NovelListPanel({
       {!isLoading && novels.length === 0 && <p className="state-line">还没有作品</p>}
       <div className="author-novel-list">
         {novels.map((novel) => (
-          <button
-            className={selectedNovelId === novel.id ? 'active' : ''}
+          <article
+            className={`author-novel-card${selectedNovelId === novel.id ? ' active' : ''}`}
             key={novel.id}
-            type="button"
-            onClick={() => onSelect(novel.id)}
           >
-            <NovelCover novel={novel} size="mini" />
-            <span>
-              <strong>{novel.title}</strong>
-              <small>
-                {statusText(novel.status)} · {novel.category.name} · {novel._count.chapters} 章
-              </small>
-              {novel.status === 'REJECTED' && novel.latestRejection && (
-                <RejectionNote reason={novel.latestRejection.reason} />
-              )}
-            </span>
-          </button>
+            <button
+              className="author-novel-summary"
+              type="button"
+              onClick={() => onSelect(novel.id)}
+            >
+              <NovelCover novel={novel} />
+              <span>
+                <strong>{novel.title}</strong>
+                <small>
+                  {statusText(novel.status)} · {novel.category.name} · {novel._count.chapters} 章
+                </small>
+                {novel.status === 'REJECTED' && novel.latestRejection && (
+                  <RejectionNote reason={novel.latestRejection.reason} />
+                )}
+              </span>
+            </button>
+            <div className="author-novel-quick-actions" aria-label={`${novel.title} 快捷操作`}>
+              <button type="button" onClick={() => onOpenSettings(novel.id)}>
+                <PencilLine size={14} aria-hidden />
+                作品设置
+              </button>
+              <button type="button" onClick={() => onOpenCatalog(novel.id)}>
+                <ListChecks size={14} aria-hidden />
+                章节管理
+              </button>
+              <button className="create" type="button" onClick={() => onCreateChapter(novel.id)}>
+                <FilePlus2 size={14} aria-hidden />
+                创建章节
+              </button>
+            </div>
+          </article>
         ))}
       </div>
     </section>
@@ -3289,93 +4154,114 @@ function EditChapterPanel({
   }
 
   return (
-    <form className="panel author-form chapter-editor-form" onSubmit={submit}>
-      <div className="section-title">
-        <h2>编辑章节</h2>
-        {chapter ? (
-          <span className="muted">第 {chapter.orderIndex} 章</span>
-        ) : (
-          <PencilLine size={18} aria-hidden />
+    <form className="chapter-editor-form" onSubmit={submit}>
+      <header className="chapter-editor-topbar">
+        <div>
+          <span className="chapter-editor-kicker">章节创作</span>
+          <strong>{chapter ? `第 ${chapter.orderIndex} 章` : '编辑章节'}</strong>
+          {chapter && <small>{statusText(chapter.status)}</small>}
+        </div>
+        <div className="chapter-editor-top-actions">
+          {canEdit && <AutoSaveNote state={autoSaveState} />}
+          <button
+            className="ghost-button"
+            disabled={disabled || !canEdit}
+            type="button"
+            onClick={() => void saveDraft()}
+          >
+            <Save size={16} aria-hidden />
+            保存草稿
+          </button>
+          <button className="primary-link" disabled={disabled || !canEdit} type="submit">
+            <Send size={16} aria-hidden />
+            {chapter?.status === 'REJECTED' ? '重新提交' : '提交审核'}
+          </button>
+        </div>
+      </header>
+
+      <main className="chapter-writing-surface">
+        {!chapter && <p className="state-line">请先选择章节</p>}
+        {chapter?.status === 'REJECTED' && chapter.latestRejection && (
+          <RejectionNote reason={chapter.latestRejection.reason} />
         )}
-      </div>
-      {!chapter && <p className="state-line">请先选择章节</p>}
-      {chapter?.status === 'REJECTED' && chapter.latestRejection && (
-        <RejectionNote reason={chapter.latestRejection.reason} />
-      )}
-      {chapter && !canEdit && (
-        <p className="state-line">当前状态为 {statusText(chapter.status)}，暂不能编辑。</p>
-      )}
-      <label>
-        所属分卷
-        <select
-          disabled={!canEdit}
-          value={volumeId}
-          onChange={(event) => {
-            setVolumeId(event.target.value);
-            markDirty();
-          }}
-        >
-          <option value="">未分卷</option>
-          {volumes.map((volume) => (
-            <option key={volume.id} value={volume.id}>
-              {volume.title}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="chapter-schedule-field">
-        <label>
-          定时发布
+        {chapter && !canEdit && (
+          <p className="state-line">当前状态为 {statusText(chapter.status)}，暂不能编辑。</p>
+        )}
+
+        <div className="chapter-editor-meta">
+          <label>
+            <span>所属分卷</span>
+            <select
+              disabled={!canEdit}
+              value={volumeId}
+              onChange={(event) => {
+                setVolumeId(event.target.value);
+                markDirty();
+              }}
+            >
+              <option value="">未分卷</option>
+              {volumes.map((volume) => (
+                <option key={volume.id} value={volume.id}>
+                  {volume.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>定时发布</span>
+            <input
+              type="datetime-local"
+              min={minimumScheduleValue()}
+              disabled={!canSchedule}
+              value={scheduledAt}
+              onChange={(event) => setScheduledAt(event.target.value)}
+            />
+          </label>
+          <button
+            className="ghost-button"
+            type="button"
+            disabled={disabled || !canSchedule}
+            onClick={() => void updateSchedule()}
+          >
+            <CalendarClock size={16} aria-hidden />
+            更新发布时间
+          </button>
+        </div>
+
+        <div className="chapter-title-editor">
+          <span>第 {chapter?.orderIndex ?? '—'} 章</span>
           <input
-            type="datetime-local"
-            min={minimumScheduleValue()}
-            disabled={!canSchedule}
-            value={scheduledAt}
-            onChange={(event) => setScheduledAt(event.target.value)}
+            aria-label="章节标题"
+            required
+            disabled={!canEdit}
+            maxLength={80}
+            placeholder="请输入章节标题"
+            value={title}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              markDirty();
+            }}
           />
+        </div>
+        <label className="chapter-content-field">
+          <textarea
+            aria-label="章节正文"
+            disabled={!canEdit}
+            placeholder="从这里开始写正文……"
+            value={content}
+            onChange={(event) => {
+              setContent(event.target.value);
+              markDirty();
+            }}
+          />
+          <span className="chapter-word-count">{content.trim().length} 字</span>
         </label>
-        <button
-          className="ghost-button"
-          type="button"
-          disabled={disabled || !canSchedule}
-          onClick={() => void updateSchedule()}
-        >
-          <CalendarClock size={16} aria-hidden />
-          {chapter?.status === 'SCHEDULED' && !scheduledAt ? '立即发布' : '更新发布时间'}
-        </button>
-        <small>
-          {chapter?.status === 'SCHEDULED'
-            ? '清空时间后点击按钮将立即发布。'
-            : '留空表示审核通过后立即发布。'}
-        </small>
-      </div>
-      <label>
-        章节标题
-        <input
-          required
-          disabled={!canEdit}
-          maxLength={80}
-          value={title}
-          onChange={(event) => {
-            setTitle(event.target.value);
-            markDirty();
-          }}
-        />
-      </label>
-      <label className="chapter-content-field">
-        <span className="chapter-field-label">
-          正文
-          <small>已写 {content.trim().length} 字</small>
-        </span>
-        <textarea
-          disabled={!canEdit}
-          value={content}
-          onChange={(event) => {
-            setContent(event.target.value);
-            markDirty();
-          }}
-        />
-      </label>
+        {localError && (
+          <p className="auth-error" role="alert">
+            {localError}
+          </p>
+        )}
+      </main>
       <AuthorAiAssistant
         chapter={chapter}
         token={token}
@@ -3387,27 +4273,6 @@ function EditChapterPanel({
           markDirty();
         }}
       />
-      {localError && (
-        <p className="auth-error" role="alert">
-          {localError}
-        </p>
-      )}
-      {canEdit && <AutoSaveNote state={autoSaveState} />}
-      <div className="author-form-actions">
-        <button
-          className="ghost-button"
-          disabled={disabled || !canEdit}
-          type="button"
-          onClick={() => void saveDraft()}
-        >
-          <Save size={16} aria-hidden />
-          保存草稿
-        </button>
-        <button className="primary-link" disabled={disabled || !canEdit} type="submit">
-          <Send size={16} aria-hidden />
-          {chapter?.status === 'REJECTED' ? '重新提交审核' : '提交审核'}
-        </button>
-      </div>
     </form>
   );
 }
@@ -3431,26 +4296,67 @@ function AuthorAiAssistant({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const [query, setQuery] = useState('');
 
-  const actions: Array<{ action: AuthorAiAction; label: string }> = [
+  const primaryActions: Array<{
+    action: AuthorAiAction;
+    label: string;
+    description: string;
+    icon: ReactNode;
+  }> = [
+    {
+      action: 'character',
+      label: '人物设定',
+      description: '整理角色关系、动机与特征',
+      icon: <BookOpen size={18} aria-hidden />,
+    },
+    {
+      action: 'naming',
+      label: 'AI 起名',
+      description: '生成章节名、人物名和地点名',
+      icon: <PencilLine size={18} aria-hidden />,
+    },
+    {
+      action: 'inspiration',
+      label: '灵感生成',
+      description: '给出冲突、转折与后续方向',
+      icon: <Sparkles size={18} aria-hidden />,
+    },
+  ];
+  const secondaryActions: Array<{ action: AuthorAiAction; label: string }> = [
     { action: 'summary', label: '章节摘要' },
     { action: 'outline', label: '大纲建议' },
     { action: 'polish', label: '润色建议' },
     { action: 'consistency', label: '设定检查' },
   ];
+  const actionLabels: Record<AuthorAiAction, string> = {
+    character: '人物设定',
+    naming: 'AI 起名',
+    inspiration: '灵感生成',
+    research: 'AI 查询',
+    summary: '章节摘要',
+    outline: '大纲建议',
+    polish: '润色建议',
+    consistency: '设定检查',
+  };
 
   useEffect(() => {
     setResult(undefined);
     setError(undefined);
     setCopied(false);
+    setQuery('');
   }, [chapter?.id]);
 
   async function run(action: AuthorAiAction) {
-    if (!chapter || !token) {
+    if (!token) {
       return;
     }
-    if (title.trim().length === 0 || content.trim().length < 20) {
-      setError('请先填写章节标题，并准备至少 20 个字符的正文。');
+    if (action !== 'research' && content.trim().length < 20) {
+      setError('请先准备至少 20 个字符的正文或创作思路。');
+      return;
+    }
+    if (action === 'research' && query.trim().length === 0) {
+      setError('请输入想查询的问题。');
       return;
     }
 
@@ -3458,7 +4364,20 @@ function AuthorAiAssistant({
     setError(undefined);
     setCopied(false);
     try {
-      setResult(await api.authorAiAssist(token, chapter.id, { action, title, content }));
+      const payload = {
+        action,
+        title: title.trim() || '未命名章节',
+        content:
+          content.trim().length >= 20
+            ? content
+            : '当前章节尚未开始写作，作者正在进行与小说创作相关的资料查询。',
+        query: action === 'research' ? query.trim() : undefined,
+      };
+      setResult(
+        chapter
+          ? await api.authorAiAssist(token, chapter.id, payload)
+          : await api.authorAiAssistDraft(token, payload),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'AI 辅助暂时不可用，请稍后重试。');
     } finally {
@@ -3484,30 +4403,76 @@ function AuthorAiAssistant({
         <div>
           <span className="author-ai-title">
             <Sparkles size={16} aria-hidden />
-            AI 写作辅助
+            AI 创作助手
           </span>
-          <small>基于当前未保存的标题和正文生成建议，内容不会自动保存或发布。</small>
+          <small>读取当前编辑区内容，但不会自动保存或发布。</small>
         </div>
       </div>
-      <div className="author-ai-actions" aria-label="AI 辅助操作">
-        {actions.map(({ action, label }) => (
+      <div className="author-ai-tool-grid" aria-label="AI 创作工具">
+        {primaryActions.map(({ action, label, description, icon }) => (
           <button
             key={action}
-            className="ghost-button"
+            className="author-ai-tool"
             type="button"
-            disabled={disabled || isLoading || !chapter || !token}
+            disabled={disabled || isLoading || !token}
+            onClick={() => void run(action)}
+          >
+            <span>{icon}</span>
+            <span>
+              <strong>{label}</strong>
+              <small>{description}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="author-ai-query">
+        <label htmlFor="author-ai-query">AI 查询</label>
+        <textarea
+          id="author-ai-query"
+          maxLength={200}
+          placeholder="例如：古代客栈通常如何称呼掌柜？"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <button
+          className="ghost-button"
+          type="button"
+          disabled={disabled || isLoading || !token}
+          onClick={() => void run('research')}
+        >
+          <FileText size={16} aria-hidden />
+          查询
+        </button>
+        <small>基于模型知识回答；涉及事实时请再次核验。</small>
+      </div>
+
+      <div className="author-ai-secondary-actions" aria-label="文本辅助工具">
+        {secondaryActions.map(({ action, label }) => (
+          <button
+            key={action}
+            type="button"
+            disabled={disabled || isLoading || !token}
             onClick={() => void run(action)}
           >
             {label}
           </button>
         ))}
       </div>
-      {!chapter && <p className="state-line">保存章节草稿后即可使用 AI 辅助。</p>}
-      {error && <p className="auth-error" role="alert">{error}</p>}
+      {isLoading && (
+        <p className="author-ai-loading">
+          <Sparkles size={15} aria-hidden /> 正在生成建议...
+        </p>
+      )}
+      {error && (
+        <p className="auth-error" role="alert">
+          {error}
+        </p>
+      )}
       {result && (
         <div className="author-ai-result">
           <div className="author-ai-result-heading">
-            <strong>{actions.find((item) => item.action === result.action)?.label}</strong>
+            <strong>{actionLabels[result.action]}</strong>
             <span>{result.model}</span>
           </div>
           <pre>{result.content}</pre>
@@ -3529,12 +4494,14 @@ function CreateChapterPanel({
   disabled,
   novel,
   volumes,
+  token,
   onSaveDraft,
   onSubmit,
 }: {
   disabled: boolean;
   novel?: AuthorNovel;
   volumes: NovelVolume[];
+  token?: string;
   onSaveDraft(payload: ChapterPayload): Promise<void>;
   onSubmit(payload: ChapterPayload): Promise<void>;
 }) {
@@ -3600,71 +4567,98 @@ function CreateChapterPanel({
   }
 
   return (
-    <form className="panel author-form" onSubmit={submit}>
-      <div className="section-title">
-        <h2>提交章节</h2>
-        <FilePlus2 size={18} aria-hidden />
-      </div>
-      <p className="state-line">{novel ? `当前作品：${novel.title}` : '请先创建或选择作品'}</p>
-      <label>
-        所属分卷
-        <select
-          disabled={disabled || !novel}
-          value={volumeId}
-          onChange={(event) => setVolumeId(event.target.value)}
-        >
-          <option value="">未分卷</option>
-          {volumes.map((volume) => (
-            <option key={volume.id} value={volume.id}>
-              {volume.title}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        定时发布
-        <input
-          type="datetime-local"
-          min={minimumScheduleValue()}
-          disabled={disabled || !novel}
-          value={scheduledAt}
-          onChange={(event) => setScheduledAt(event.target.value)}
-        />
-        <small>留空表示审核通过后立即发布。</small>
-      </label>
-      <label>
-        章节标题
-        <input
-          required
-          maxLength={80}
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-        />
-      </label>
-      <label>
-        正文
-        <textarea value={content} onChange={(event) => setContent(event.target.value)} />
-      </label>
-      {localError && (
-        <p className="auth-error" role="alert">
-          {localError}
-        </p>
-      )}
-      <div className="author-form-actions">
-        <button
-          className="ghost-button"
-          disabled={disabled || !novel}
-          type="button"
-          onClick={() => void saveDraft()}
-        >
-          <Save size={16} aria-hidden />
-          保存草稿
-        </button>
-        <button className="primary-link" disabled={disabled || !novel} type="submit">
-          <Send size={16} aria-hidden />
-          提交审核
-        </button>
-      </div>
+    <form className="chapter-editor-form chapter-create-editor" onSubmit={submit}>
+      <header className="chapter-editor-topbar">
+        <div>
+          <span className="chapter-editor-kicker">新章节</span>
+          <strong>{novel?.title ?? '请先选择作品'}</strong>
+          <small>第 {(novel?._count.chapters ?? 0) + 1} 章</small>
+        </div>
+        <div className="chapter-editor-top-actions">
+          <span className="autosave-note">新章节将在保存草稿后进入自动保存</span>
+          <button
+            className="ghost-button"
+            disabled={disabled || !novel}
+            type="button"
+            onClick={() => void saveDraft()}
+          >
+            <Save size={16} aria-hidden />
+            保存草稿
+          </button>
+          <button className="primary-link" disabled={disabled || !novel} type="submit">
+            <Send size={16} aria-hidden />
+            提交审核
+          </button>
+        </div>
+      </header>
+
+      <main className="chapter-writing-surface">
+        <div className="chapter-editor-meta">
+          <label>
+            <span>所属分卷</span>
+            <select
+              disabled={disabled || !novel}
+              value={volumeId}
+              onChange={(event) => setVolumeId(event.target.value)}
+            >
+              <option value="">未分卷</option>
+              {volumes.map((volume) => (
+                <option key={volume.id} value={volume.id}>
+                  {volume.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>定时发布</span>
+            <input
+              type="datetime-local"
+              min={minimumScheduleValue()}
+              disabled={disabled || !novel}
+              value={scheduledAt}
+              onChange={(event) => setScheduledAt(event.target.value)}
+            />
+          </label>
+          <small>留空表示审核通过后立即发布</small>
+        </div>
+
+        <div className="chapter-title-editor">
+          <span>第 {(novel?._count.chapters ?? 0) + 1} 章</span>
+          <input
+            aria-label="章节标题"
+            required
+            disabled={disabled || !novel}
+            maxLength={80}
+            placeholder="请输入章节标题"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+        </div>
+        <label className="chapter-content-field">
+          <textarea
+            aria-label="章节正文"
+            disabled={disabled || !novel}
+            placeholder="从这里开始写正文……"
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+          />
+          <span className="chapter-word-count">{content.trim().length} 字</span>
+        </label>
+        {localError && (
+          <p className="auth-error" role="alert">
+            {localError}
+          </p>
+        )}
+      </main>
+      <AuthorAiAssistant
+        token={token}
+        title={title}
+        content={content}
+        disabled={disabled || !novel}
+        onAppend={(suggestion) => {
+          setContent((current) => `${current.trimEnd()}\n\n${suggestion.trim()}`.trim());
+        }}
+      />
     </form>
   );
 }

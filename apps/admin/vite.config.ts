@@ -1,9 +1,11 @@
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
-export default defineConfig({
-  plugins: [react()],
-  build: {
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  return {
+    plugins: [react()],
+    build: {
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -31,10 +33,11 @@ export default defineConfig({
         },
       },
     },
-  },
-  server: {
-    proxy: {
-      '/api': 'http://localhost:3000',
     },
-  },
+    server: {
+      proxy: {
+        '/api': env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:3400',
+      },
+    },
+  };
 });

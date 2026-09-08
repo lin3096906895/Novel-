@@ -10,9 +10,10 @@ function App() {
   const { user, isAuthenticated, logout } = useAuth();
   const location = useLocation();
   const isLogin = location.pathname === '/login';
+  const isWriting = location.pathname.startsWith('/write/');
 
   return (
-    <div className="author-portal-shell">
+    <div className={`author-portal-shell${isWriting ? ' writing-mode' : ''}`}>
       <header className="author-portal-header">
         <a className="author-portal-brand" href={readerPortalUrl}>
           <BookOpen size={22} aria-hidden />
@@ -36,9 +37,10 @@ function App() {
           )}
         </div>
       </header>
-      <main className="author-portal-main">
+      <main className={`author-portal-main${isWriting ? ' writing-mode' : ''}`}>
         <Routes>
           <Route path="/" element={<AuthorPage />} />
+          <Route path="/write/:novelId/:chapterId" element={<AuthorPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="*" element={<Navigate replace to="/" />} />
         </Routes>

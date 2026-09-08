@@ -67,6 +67,32 @@ describe('AuthorAiService', () => {
     );
   });
 
+  it('supports AI assistance for an unsaved draft and includes the author question', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestBody = '';
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      requestBody = String(init?.body);
+      return {
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'Research answer' } }] }),
+      };
+    }) as typeof fetch;
+
+    try {
+      const result = await createService().assistDraft(author, {
+        action: 'research',
+        title: '未命名章节',
+        content: '这是一段足够长的创作思路，用于测试新章节保存前也可以调用 AI 辅助。',
+        query: '古代客栈如何称呼掌柜？',
+      });
+      assert.equal(result.action, 'research');
+      assert.match(requestBody, /Author question:/);
+      assert.match(requestBody, /do not claim live web access/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('requires a server-side provider key', async () => {
     await assert.rejects(
       () => createService(author.id, '').assistChapter(author, 'chapter_1', dto),

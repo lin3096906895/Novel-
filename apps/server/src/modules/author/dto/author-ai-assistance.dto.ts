@@ -1,6 +1,15 @@
-import { IsIn, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
-export const AUTHOR_AI_ACTIONS = ['summary', 'outline', 'polish', 'consistency'] as const;
+export const AUTHOR_AI_ACTIONS = [
+  'character',
+  'naming',
+  'inspiration',
+  'research',
+  'summary',
+  'outline',
+  'polish',
+  'consistency',
+] as const;
 
 export type AuthorAiAction = (typeof AUTHOR_AI_ACTIONS)[number];
 
@@ -17,4 +26,9 @@ export class AuthorAiAssistanceDto {
   @MinLength(20)
   @MaxLength(30000)
   content!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  query?: string;
 }

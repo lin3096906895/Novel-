@@ -38,7 +38,7 @@ corepack pnpm dev
 
 - 用户端：http://localhost:5300
 - 管理端：http://localhost:5301
-- 后端 API：http://localhost:3000/api
+- 后端 API：http://localhost:3400/api
 - PostgreSQL：localhost:15432
 
 种子账号：
@@ -79,6 +79,7 @@ corepack pnpm dev
 - 作者身份激活：审核通过后升级账号角色、创建作者资料、发送站内通知并记录管理员审计日志
 - 作者资料维护：作者可在工作台修改笔名和简介，当前访问令牌会按数据库角色立即获得写作权限
 - 作者工作台：创建和编辑作品、创建和编辑章节、驳回原因展示、重新提交审核
+- 采集任务：作者端按书名预览中文维基文库公版作品，确认来源、许可和章节后导入阅读端；任务预览 30 分钟有效
 - 作品分卷：创建、重命名、排序和安全删除分卷，章节可在创建、编辑或列表中调整所属卷
 - 分卷目录：已有作品自动迁移到默认“正文”卷，作品详情和阅读器目录展示章节所属分卷
 - 作品与章节草稿：手动保存、继续编辑、1.2 秒自动保存、提交审核前完整性校验；章节自动保存快照按十分钟节流并自动去重
@@ -107,6 +108,54 @@ corepack pnpm test:functional
 corepack pnpm test:e2e
 corepack pnpm build
 ```
+
+## 本地 RAG 开发环境
+
+本地 RAG 基础设施使用 Docker 运行 pgvector 和 Python 服务。默认 `EMBEDDING_MODE=mock` 只用于验证切片、写入和检索链路，不代表真实语义效果；接入实际中文 embedding 服务后，再开始作者端连续性检查。
+
+```powershell
+corepack pnpm db:up
+corepack pnpm --dir apps/server exec prisma migrate deploy
+docker compose up -d rag
+Invoke-WebRequest http://127.0.0.1:8000/health
+```
+
+启动 NestJS 前，请在根目录 `.env` 中设置 `RAG_ENABLED=true`、`RAG_SERVICE_URL=http://127.0.0.1:8000`，并让 `INTERNAL_RAG_TOKEN` 与 Compose 中一致。章节保存/提交后会异步建立向量索引；作者 AI 辅助会在启用 RAG 时检索当前章节之前的内容，并在返回中附带来源章节。
+
+如果构建时 PyPI 下载超时，可覆盖 Python 包源，例如：
+
+```powershell
+docker compose build --build-arg PIP_INDEX_URL=https://pypi.org/simple rag
+```
+
+Python 服务只绑定本机 `127.0.0.1:8000`，浏览器不应直接访问它。后续将由 NestJS 负责作者权限校验，再通过内部令牌调用 RAG 服务。部署到腾讯云时可以直接复用这套 Compose；生产环境需要把 `EMBEDDING_MODE`、`INTERNAL_RAG_TOKEN` 和数据库连接改为生产值，并且不要把 8000、5432 或向量数据库端口暴露到公网。
+
+## 导入公版小说
+
+项目内置中文维基文库导入器，只应用于公版或已获得明确授权的作品。导入器使用 MediaWiki API、带请求间隔和来源标注，不应改造成绕过登录、付费或反爬限制的商业小说站抓取器。
+
+首次使用先应用数据库迁移并生成 Prisma Client：
+
+```powershell
+corepack pnpm --dir apps/server exec prisma migrate deploy
+corepack pnpm --filter @novel/server prisma:generate
+```
+
+下面的命令默认只预览，不写数据库，并且最多读取 20 章：
+
+```powershell
+corepack pnpm --filter @novel/server crawler:wikisource -- --title "红楼梦" --category "古代言情" --source-author "曹雪芹"
+```
+
+确认预览无误后，加 `--commit` 正式导入；使用 `--max-chapters 120` 调高章节数，或用 `--all-chapters` 导入检测到的全部章节：
+
+```powershell
+corepack pnpm --filter @novel/server crawler:wikisource -- --title "红楼梦" --category "古代言情" --source-author "曹雪芹" --all-chapters --commit
+```
+
+重复运行同一作品会按维基文库页面 ID 更新已有作品和章节，不会重复创建。正式导入前仍需在来源页核对原文版权状态；导入内容会统一归入不可用普通密码登录的“公版图书馆”作者账号，并在阅读端显示原作者、来源和许可说明。
+
+如果命令提示 `fetch failed` 或连接超时，请先确认服务器能访问 `https://zh.wikisource.org/w/api.php`。这是网络连通问题，导入器不会绕过目标站限制；可在能正常访问该 API 的服务器上运行同一命令。开发端代理默认连接 `http://127.0.0.1:3400`，需要自定义时设置 `VITE_API_PROXY_TARGET`。
 
 ## 主要页面
 
@@ -145,6 +194,8 @@ POST   /api/author/chapters/:chapterId/restore
 DELETE /api/author/chapters/:chapterId/permanent
 PUT    /api/author/novels/:novelId/chapters/order
 POST   /api/author/novels/:novelId/chapters/batch-delete
+POST   /api/author/collection-tasks/preview
+POST   /api/author/collection-tasks/:taskId/commit
 GET    /api/author/novels/:novelId/announcements
 POST   /api/author/novels/:novelId/announcements
 PATCH  /api/author/announcements/:announcementId
@@ -239,3 +290,37 @@ TWO_FACTOR_RECOVERY_SECRET=replace_me_in_real_projects
 1. 质量保障：关键用户路径浏览器端自动化回归与深度无障碍审计
 
 暂缓事项：异常网络识别、付费章节、会员、订阅、打赏、作者结算、部署网络、监控、缓存和对象存储。
+## JSON 采集适配器
+
+作者端采集任务支持先分析 JSON 接口，再按字段路径提取作品、章节和正文。仅对你有权访问且允许自动化读取的接口使用；不会绕过登录、付费墙、验证码或反爬限制。
+
+```text
+POST /api/author/collection-tasks/analyze-json
+{"sourceUrl":"https://example.com/api/book/1"}
+```
+
+分析结果包含字段树、数组结构和候选路径。创建预览时可传入 `sourceType=json`、`sourceUrl`、`titlePath`、`chaptersPath`、`chapterTitlePath`、`chapterContentPath`，以及可选的 `summaryPath`、`chapterUrlPath`、`chapterIdPath`。路径支持 `$.data.chapters`、`data.chapters`、`chapters[0]` 等形式；单次响应限制 5MB，最多预览 100 章。
+
+## HTML 采集适配器
+
+作者端也支持对公开 HTML 页面进行结构分析，再按选择器提取作品和章节。典型流程是：
+
+1. 在作者端将“采集来源”切换为 HTML，输入分类页、作品详情页或章节目录页地址。
+2. 点击“分析页面”，查看页面标题、链接数量和候选选择器。
+3. 校正书名、简介、章节链接和正文选择器，点击“采集并生成预览”。
+4. 检查章节标题、字数和来源链接，确认后再导入阅读端。
+
+采集范围支持填写“起始章节”和“结束章节”。例如起始章节填 `21`、结束章节填 `40`，只会采集目录正序中的第 21–40 章；起始和结束填写相同数字时可只采集指定的一章。若不填写结束章节，则从起始章节开始，按“最多采集章节”数量截取。对于按最新章节倒序展示的目录，HTML 采集器会优先根据章节标题或章节链接中的序号恢复为从第一章到最后一章的顺序。单次章节范围最多 50 章，可分多次续接导入，导入时会保留来源目录中的章节位置。
+
+```text
+POST /api/author/collection-tasks/analyze-html
+{"sourceUrl":"https://example.com/book/list.html"}
+```
+
+创建预览时传入 `sourceType=html`、`sourceUrl`、`title` 和可选的 `titleSelector`、`summarySelector`、`chapterLinkSelector`、`chapterContentSelector`。当前轻量解析器支持常见的 `#id`、`.class`、`tag`、`#container tag` 以及内置的章节链接选择器（例如 `a[rel="chapter"]`、`#list a[href*=".html"]`）。如需使用其他站点，先在本地用“分析页面”确认结构，并将域名加入白名单：
+
+```env
+CRAWLER_ALLOWED_DOMAINS=example.com
+```
+
+白名单为空时不会执行 HTML 采集。采集器限制单次 HTML 响应不超过 5MB、最多预览 50 章，并对请求做间隔控制；它不会绕过登录、验证码、付费墙或反爬措施。请只用于公版内容、公开元数据或你拥有明确复制发布授权的作品。

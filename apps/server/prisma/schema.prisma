@@ -249,16 +249,22 @@ model Tag {
 }
 
 model Novel {
-  id             String                @id @default(cuid())
-  title          String
-  summary        String
-  coverUrl       String?
-  status         NovelStatus           @default(DRAFT)
-  wordCount      Int                   @default(0)
-  authorId       String
-  categoryId     String
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  id               String                @id @default(cuid())
+  title            String
+  summary          String
+  coverUrl         String?
+  status           NovelStatus           @default(DRAFT)
+  wordCount        Int                   @default(0)
+  authorId         String
+  categoryId       String
+  sourceKey        String?               @unique
+  sourceName       String?
+  sourceExternalId String?
+  sourceUrl        String?
+  sourceAuthor     String?
+  sourceLicense    String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
   author         User                  @relation(fields: [authorId], references: [id])
   category       Category              @relation(fields: [categoryId], references: [id])
   tags           Tag[]                 @relation("NovelTags")
@@ -271,6 +277,7 @@ model Novel {
   comments       Comment[]
   ratings        NovelRating[]
   recommendItem  RecommendItem[]
+  chunks         NovelChunk[]
 
   @@index([status, updatedAt])
   @@index([categoryId, status])
@@ -331,6 +338,10 @@ model Chapter {
   orderIndex        Int
   status            ChapterStatus       @default(DRAFT)
   wordCount         Int                 @default(0)
+  sourceKey         String?             @unique
+  sourceName        String?
+  sourceExternalId  String?
+  sourceUrl         String?
   scheduledAt       DateTime?
   publishedAt       DateTime?
   deletedAt         DateTime?
@@ -345,12 +356,38 @@ model Chapter {
   annotations       ReadingAnnotation[]
   paragraphComments ParagraphComment[]
   versions          ChapterVersion[]
+  chunks            NovelChunk[]
 
   @@index([novelId, orderIndex])
   @@index([novelId, status, orderIndex])
   @@index([novelId, deletedAt])
   @@index([status, scheduledAt])
   @@index([volumeId, orderIndex])
+}
+
+model NovelChunk {
+  id              String   @id @default(cuid())
+  novelId         String
+  chapterId       String
+  chapterOrder    Int
+  chunkIndex      Int
+  content         String
+  contentHash     String
+  tokenCount      Int      @default(0)
+  startOffset     Int      @default(0)
+  endOffset       Int      @default(0)
+  embeddingModel  String
+  embedding       Unsupported("vector(1024)")?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  novel           Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  chapter         Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([chapterId, chunkIndex])
+  @@index([novelId, chapterOrder])
+  @@index([chapterId, chunkIndex])
+  @@index([contentHash])
 }
 
 model ChapterVersion {

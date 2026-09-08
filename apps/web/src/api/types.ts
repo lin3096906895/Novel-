@@ -8,7 +8,15 @@ export type UserRole = 'READER' | 'AUTHOR' | 'ADMIN';
 export type UserStatus = 'ACTIVE' | 'SUSPENDED';
 export type AuthorSaveAction = 'save' | 'submit';
 export type AuthorChapterSaveSource = 'manual' | 'autosave';
-export type AuthorAiAction = 'summary' | 'outline' | 'polish' | 'consistency';
+export type AuthorAiAction =
+  | 'character'
+  | 'naming'
+  | 'inspiration'
+  | 'research'
+  | 'summary'
+  | 'outline'
+  | 'polish'
+  | 'consistency';
 export type AuthorApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface User {
@@ -201,6 +209,10 @@ export interface Novel {
   wordCount: number;
   authorId?: string;
   categoryId?: string;
+  sourceName?: string | null;
+  sourceUrl?: string | null;
+  sourceAuthor?: string | null;
+  sourceLicense?: string | null;
   createdAt: string;
   updatedAt: string;
   author: AuthorSummary;
@@ -228,6 +240,7 @@ export interface Chapter extends ChapterSummary {
   novel: {
     id: string;
     title: string;
+    sourceAuthor?: string | null;
     author: AuthorSummary;
   };
 }
@@ -288,6 +301,73 @@ export interface AuthorAiAssistanceResult {
   action: AuthorAiAction;
   content: string;
   model: string;
+}
+
+export interface AuthorCollectionTaskPreview {
+  taskId: string;
+  createdAt: string;
+  expiresAt: string;
+  title: string;
+  summary: string;
+  coverUrl?: string | null;
+  category: Pick<Category, 'id' | 'name'>;
+  sourceName: string;
+  sourceUrl: string;
+  sourceAuthor?: string | null;
+  sourceLicense: string;
+  chapterCount: number;
+  discoveredChapterCount: number;
+  wordCount: number;
+  isComplete: boolean;
+  chapters: Array<{
+    externalId: string;
+    title: string;
+    wordCount: number;
+    sourceUrl: string;
+    orderIndex?: number;
+  }>;
+}
+
+export interface AuthorCollectionHtmlAnalysis {
+  url: string;
+  rootType: 'html';
+  title: string;
+  candidates: {
+    titleSelectors: string[];
+    summarySelectors: string[];
+    chapterLinkSelectors: string[];
+    contentSelectors: string[];
+  };
+  counts: {
+    links: number;
+    chapterLinks: number;
+  };
+}
+
+export interface AuthorCollectionJsonAnalysis {
+  url: string;
+  rootType: string;
+  fields: Array<{ path: string; type: string; sample: unknown }>;
+  arrays: Array<{ path: string; length: number; itemFields: string[] }>;
+  candidates: {
+    titlePaths: string[];
+    summaryPaths: string[];
+    chapterArrayPaths: string[];
+    contentPaths: string[];
+    urlPaths: string[];
+  };
+}
+
+export interface AuthorCollectionTaskResult {
+  mode: 'committed';
+  novelId: string;
+  title: string;
+  categoryName: string;
+  chapterCount: number;
+  wordCount: number;
+  isComplete: boolean;
+  sourceName: string;
+  sourceUrl: string;
 }
 
 export type ChapterVersionSource = 'MANUAL' | 'AUTOSAVE' | 'SUBMIT' | 'RESTORE';

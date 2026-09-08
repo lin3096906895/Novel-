@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   ChapterStatus,
@@ -29,6 +30,7 @@ import { UpdateChapterScheduleDto } from './dto/update-chapter-schedule.dto';
 import { UpdateNovelLifecycleDto } from './dto/update-novel-lifecycle.dto';
 import { UpdateNovelDto } from './dto/update-novel.dto';
 import { UpdateVolumeDto } from './dto/update-volume.dto';
+import { AuthorRagService } from './author-rag.service';
 
 const AUTOSAVE_SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
 
@@ -38,6 +40,7 @@ export class AuthorService {
     private readonly prisma: PrismaService,
     private readonly publicationService: ChapterPublicationService,
     private readonly sensitiveWordsService: SensitiveWordsService,
+    @Optional() private readonly ragService?: AuthorRagService,
   ) {}
 
   async createNovel(user: RequestUser, dto: CreateNovelDto) {
@@ -288,7 +291,7 @@ export class AuthorService {
       dto.volumeId === undefined ? (novel.volumes[0]?.id ?? null) : dto.volumeId;
     const volumeId = await this.validateChapterVolume(novelId, requestedVolumeId);
 
-    return this.prisma.chapter.create({
+    const created = await this.prisma.chapter.create({
       data: {
         novelId,
         volumeId,
@@ -300,6 +303,15 @@ export class AuthorService {
         status: dto.action === 'save' ? ChapterStatus.DRAFT : ChapterStatus.REVIEWING,
       },
     });
+
+    void this.ragService?.indexChapter({
+      novelId,
+      chapterId: created.id,
+      chapterOrder: created.orderIndex,
+      title: created.title,
+      content: created.content,
+    });
+    return created;
   }
 
   async updateChapter(user: RequestUser, chapterId: string, dto: UpdateChapterDto) {
@@ -311,6 +323,7 @@ export class AuthorService {
         volumeId: true,
         title: true,
         content: true,
+        orderIndex: true,
         wordCount: true,
         scheduledAt: true,
         status: true,
@@ -363,7 +376,7 @@ export class AuthorService {
           ? ChapterVersionSource.AUTOSAVE
           : ChapterVersionSource.MANUAL;
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       if (this.hasChapterSnapshotChanged(chapter, nextChapter)) {
         await this.createChapterVersionIfNeeded(tx, chapter, source);
       }
@@ -386,6 +399,15 @@ export class AuthorService {
         },
       });
     });
+
+    void this.ragService?.indexChapter({
+      novelId: chapter.novelId,
+      chapterId: updated.id,
+      chapterOrder: chapter.orderIndex ?? 0,
+      title: updated.title,
+      content: updated.content,
+    });
+    return updated;
   }
 
   async listChapterVersions(user: RequestUser, chapterId: string) {

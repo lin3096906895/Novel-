@@ -191,6 +191,7 @@ export class NovelsService {
           select: {
             id: true,
             title: true,
+            sourceAuthor: true,
             author: {
               select: {
                 id: true,

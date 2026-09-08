@@ -11,3 +11,8 @@ test-results
 postgres-data
 redis-data
 apps/server/uploads
+.idea/
+target/
+*.tsbuildinfo
+__pycache__/
+*.py[cod]

@@ -7,6 +7,10 @@ import type {
   AuthorCalendarEvent,
   AuthorCalendarEventType,
   AuthorApplication,
+  AuthorCollectionTaskPreview,
+  AuthorCollectionTaskResult,
+  AuthorCollectionHtmlAnalysis,
+  AuthorCollectionJsonAnalysis,
   AuthorChapterSaveSource,
   AuthorSaveAction,
   FollowedAuthor,
@@ -394,6 +398,62 @@ export const api = {
     return request<AuthorNovel[]>('/author/novels', { token });
   },
 
+  previewAuthorCollectionTask(
+    token: string,
+    payload: {
+      sourceType?: 'wikisource' | 'json' | 'html';
+      title: string;
+      categoryId: string;
+      sourceUrl?: string;
+      sourceAuthor?: string;
+      titlePath?: string;
+      summaryPath?: string;
+      chaptersPath?: string;
+      chapterTitlePath?: string;
+      chapterContentPath?: string;
+      chapterUrlPath?: string;
+      chapterIdPath?: string;
+      titleSelector?: string;
+      summarySelector?: string;
+      chapterLinkSelector?: string;
+      chapterContentSelector?: string;
+      maxChapters?: number;
+      startChapter?: number;
+      endChapter?: number;
+      rightsConfirmed: true;
+    },
+  ) {
+    return request<AuthorCollectionTaskPreview>('/author/collection-tasks/preview', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(payload),
+    });
+  },
+
+  analyzeHtmlCollectionSource(token: string, sourceUrl: string) {
+    return request<AuthorCollectionHtmlAnalysis>('/author/collection-tasks/analyze-html', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ sourceUrl }),
+    });
+  },
+
+  analyzeJsonCollectionSource(token: string, sourceUrl: string) {
+    return request<AuthorCollectionJsonAnalysis>('/author/collection-tasks/analyze-json', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ sourceUrl }),
+    });
+  },
+
+  commitAuthorCollectionTask(token: string, taskId: string) {
+    return request<AuthorCollectionTaskResult>(`/author/collection-tasks/${taskId}/commit`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ rightsConfirmed: true }),
+    });
+  },
+
   getAuthorDashboard(token: string, days = 14) {
     return request<AuthorDashboard>(`/author/dashboard?days=${days}`, { token });
   },
@@ -620,7 +680,12 @@ export const api = {
   authorAiAssist(
     token: string,
     chapterId: string,
-    payload: { action: import('./types').AuthorAiAction; title: string; content: string },
+    payload: {
+      action: import('./types').AuthorAiAction;
+      title: string;
+      content: string;
+      query?: string;
+    },
   ) {
     return request<import('./types').AuthorAiAssistanceResult>(
       `/author/chapters/${chapterId}/ai-assistance`,
@@ -694,6 +759,22 @@ export const api = {
     payload: { title: string; description?: string },
   ) {
     return request<NovelVolume>(`/author/novels/${novelId}/volumes`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(payload),
+    });
+  },
+
+  authorAiAssistDraft(
+    token: string,
+    payload: {
+      action: import('./types').AuthorAiAction;
+      title: string;
+      content: string;
+      query?: string;
+    },
+  ) {
+    return request<import('./types').AuthorAiAssistanceResult>('/author/ai-assistance', {
       method: 'POST',
       token,
       body: JSON.stringify(payload),

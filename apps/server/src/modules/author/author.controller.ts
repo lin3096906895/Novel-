@@ -19,6 +19,7 @@ import { RequestUser } from '../auth/auth.types';
 import { AuthorAnnouncementsService } from './author-announcements.service';
 import { AuthorAiService } from './author-ai.service';
 import { AuthorCalendarService } from './author-calendar.service';
+import { AuthorCollectionService } from './author-collection.service';
 import { AuthorService } from './author.service';
 import { AuthorCalendarQueryDto } from './dto/author-calendar-query.dto';
 import { AuthorAiAssistanceDto } from './dto/author-ai-assistance.dto';
@@ -29,6 +30,8 @@ import { CreateChapterDto } from './dto/create-chapter.dto';
 import { CreateAuthorCalendarEventDto } from './dto/create-author-calendar-event.dto';
 import { CreateNovelDto } from './dto/create-novel.dto';
 import { CreateVolumeDto } from './dto/create-volume.dto';
+import { CommitCollectionTaskDto } from './dto/commit-collection-task.dto';
+import { PreviewCollectionTaskDto } from './dto/preview-collection-task.dto';
 import { ReorderChaptersDto } from './dto/reorder-chapters.dto';
 import { ReorderVolumesDto } from './dto/reorder-volumes.dto';
 import { SaveNovelAnnouncementDto } from './dto/save-novel-announcement.dto';
@@ -48,7 +51,51 @@ export class AuthorController {
     private readonly authorAiService: AuthorAiService,
     private readonly announcementsService: AuthorAnnouncementsService,
     private readonly calendarService: AuthorCalendarService,
+    private readonly collectionService: AuthorCollectionService,
   ) {}
+
+  @Post('collection-tasks/preview')
+  async previewCollectionTask(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: PreviewCollectionTaskDto,
+  ) {
+    return {
+      code: 0,
+      message: '采集预览已生成',
+      data: await this.collectionService.preview(user, dto),
+    };
+  }
+
+  @Post('collection-tasks/analyze-json')
+  async analyzeJsonSource(@Body('sourceUrl') sourceUrl: string) {
+    return {
+      code: 0,
+      message: 'JSON 结构分析完成',
+      data: await this.collectionService.analyzeJsonSource(sourceUrl),
+    };
+  }
+
+  @Post('collection-tasks/analyze-html')
+  async analyzeHtmlSource(@Body('sourceUrl') sourceUrl: string) {
+    return {
+      code: 0,
+      message: 'HTML 结构分析完成',
+      data: await this.collectionService.analyzeHtmlSource(sourceUrl),
+    };
+  }
+
+  @Post('collection-tasks/:taskId/commit')
+  async commitCollectionTask(
+    @CurrentUser() user: RequestUser,
+    @Param('taskId') taskId: string,
+    @Body() _dto: CommitCollectionTaskDto,
+  ) {
+    return {
+      code: 0,
+      message: '公版作品已导入阅读端',
+      data: await this.collectionService.commit(user, taskId),
+    };
+  }
 
   @Get('dashboard')
   async getDashboard(@CurrentUser() user: RequestUser, @Query() query: AuthorDashboardQueryDto) {
@@ -300,6 +347,15 @@ export class AuthorController {
       code: 0,
       message: 'AI assistance generated',
       data: await this.authorAiService.assistChapter(user, chapterId, dto),
+    };
+  }
+
+  @Post('ai-assistance')
+  async assistDraftWithAi(@CurrentUser() user: RequestUser, @Body() dto: AuthorAiAssistanceDto) {
+    return {
+      code: 0,
+      message: 'AI assistance generated',
+      data: await this.authorAiService.assistDraft(user, dto),
     };
   }
 

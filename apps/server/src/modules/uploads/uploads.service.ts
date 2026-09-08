@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { access, mkdir, writeFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { basename, extname, join } from 'node:path';
 import { UploadCoverDto } from './dto/upload-cover.dto';
 
 const maxCoverSize = 2 * 1024 * 1024;
@@ -15,6 +15,48 @@ const extensionByType = {
 @Injectable()
 export class UploadsService {
   private readonly coverDir = join(process.cwd(), 'uploads', 'covers');
+
+  async saveRemoteCover(sourceUrl: string) {
+    let parsed: URL;
+    try {
+      parsed = new URL(sourceUrl);
+    } catch {
+      throw new BadRequestException('Remote cover URL is invalid');
+    }
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.hostname !== 'img.xsbook.org') {
+      throw new BadRequestException('Remote cover host is not allowed');
+    }
+
+    const response = await fetch(parsed, {
+      headers: {
+        Accept: 'image/jpeg,image/png,image/webp',
+        'User-Agent': 'Mozilla/5.0 (compatible; NovelPlatformCoverImporter/1.0)',
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!response.ok) {
+      throw new BadRequestException(`Remote cover request failed: HTTP ${response.status}`);
+    }
+    const contentType = response.headers.get('content-type')?.split(';')[0].trim();
+    if (!contentType || !(contentType in extensionByType)) {
+      throw new BadRequestException('Remote cover type is not supported');
+    }
+    const declaredSize = Number(response.headers.get('content-length') ?? 0);
+    if (declaredSize > maxCoverSize) {
+      throw new BadRequestException('Remote cover image must be smaller than 2MB');
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length === 0 || buffer.length > maxCoverSize) {
+      throw new BadRequestException('Remote cover image must be smaller than 2MB');
+    }
+
+    return this.saveCover({
+      fileName: basename(parsed.pathname) || `cover${extensionByType[contentType as keyof typeof extensionByType]}`,
+      contentType: contentType as keyof typeof extensionByType,
+      dataUrl: `data:${contentType};base64,${buffer.toString('base64')}`,
+    });
+  }
 
   async saveCover(dto: UploadCoverDto) {
     const prefix = `data:${dto.contentType};base64,`;

@@ -469,35 +469,78 @@ export function NovelDetailPage() {
     return <DetailState text={error ?? '作品不存在'} />;
   }
 
+  const displayAuthor =
+    novel.sourceAuthor?.trim() ||
+    novel.author.authorProfile?.penName ||
+    novel.author.nickname;
+  const visibleTags = novel.tags.filter(
+    (tag) => !['公版', '经典', '公版图书馆', '授权内容'].includes(tag.name.trim()),
+  );
+  const displaySummary = cleanSourceSummary(novel.summary, novel.title, displayAuthor);
+
   return (
     <article className="detail-page">
       <header className="detail-hero">
-        <NovelCover novel={novel} size="large" />
+        <div className="detail-cover-wrap">
+          <NovelCover novel={novel} size="large" />
+        </div>
         <div className="detail-main">
-          <p className="eyebrow">{novel.category.name}</p>
           <h1>{novel.title}</h1>
-          <p className="detail-meta">
-            <Link className="author-profile-link" to={`/authors/${novel.author.id}`}>
-              {novel.author.authorProfile?.penName ?? novel.author.nickname}
-            </Link>{' '}
-            · {formatWordCount(novel.wordCount)} · {chapters.length}章 · {statusText(novel.status)}
-          </p>
-          <div className="detail-stats">
-            <span>{comments.pagination.total} 条书评</span>
-            <span>{novel._count?.bookshelf ?? 0} 人收藏</span>
+          <div className="detail-byline">
             <span>
-              <CalendarDays size={14} aria-hidden />
-              {latestPublishedAt ? formatDate(latestPublishedAt) : '暂无更新'}
+              作者：
+              {novel.sourceAuthor ? (
+                <strong>{displayAuthor}</strong>
+              ) : (
+                <Link className="author-profile-link" to={`/authors/${novel.author.id}`}>
+                  {displayAuthor}
+                </Link>
+              )}
+            </span>
+            <span className="detail-update-time">
+              <CalendarDays size={15} aria-hidden />
+              更新时间：{latestPublishedAt ? formatDateTime(latestPublishedAt) : '暂无更新'}
             </span>
           </div>
-          <p className="detail-summary">{novel.summary}</p>
-          <div className="tag-row">
-            {novel.tags.length > 0 ? (
-              novel.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)
-            ) : (
-              <span>暂无标签</span>
-            )}
+
+          {latestChapter && (
+            <p className="detail-latest-chapter">
+              <span>最新章节：</span>
+              <Link to={`/chapters/${latestChapter.id}`}>{latestChapter.title}</Link>
+            </p>
+          )}
+
+          <div className="detail-classification" aria-label="作品分类">
+            <strong>{statusText(novel.status)}</strong>
+            <span>{novel.category.name}</span>
+            {visibleTags.map((tag) => (
+              <span key={tag.id}>{tag.name}</span>
+            ))}
           </div>
+
+          <p className={`detail-summary${displaySummary ? '' : ' muted'}`}>
+            {displaySummary || '暂无作品简介'}
+          </p>
+
+          <div className="detail-primary-stats">
+            <span>
+              <strong>{formatWordCount(novel.wordCount)}</strong>
+              <small>总字数</small>
+            </span>
+            <span>
+              <strong>{novel._count?.bookshelf ?? 0}</strong>
+              <small>人收藏</small>
+            </span>
+            <span>
+              <strong>{comments.pagination.total}</strong>
+              <small>条书评</small>
+            </span>
+            <span>
+              <strong>{rating.count > 0 ? rating.average.toFixed(1) : '暂无'}</strong>
+              <small>作品评分</small>
+            </span>
+          </div>
+
           <div className="action-row">
             {readingTarget && (
               <Link className="primary-link" to={`/chapters/${readingTarget}`}>
@@ -851,4 +894,30 @@ function formatDate(value: string) {
     month: '2-digit',
     day: '2-digit',
   });
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+function cleanSourceSummary(summary: string, title: string, author: string) {
+  const normalizedSummary = summary.replace(/\s+/g, ' ').trim();
+  const normalizedTitle = title.replace(/\s+/g, ' ').trim();
+  const normalizedAuthor = author.replace(/\s+/g, ' ').trim();
+  const generatedSummaries = new Set([
+    normalizedTitle,
+    `${normalizedTitle}，作者${normalizedAuthor}`,
+    `${normalizedTitle}，作者：${normalizedAuthor}`,
+    `${normalizedTitle}, 作者${normalizedAuthor}`,
+    `${normalizedTitle}, 作者：${normalizedAuthor}`,
+  ]);
+
+  return generatedSummaries.has(normalizedSummary) ? '' : normalizedSummary;
 }
