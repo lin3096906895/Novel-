@@ -85,13 +85,19 @@ def is_chapter_index_current(
     for row, chunk in zip(rows, chunks, strict=True):
         metadata = row[2] if isinstance(row[2], dict) else {}
         if (
-            row[0] != chunk["index"]
-            or row[1] != chunk["content_hash"]
+            row[0] != chunk_field(chunk, "index")
+            or row[1] != chunk_field(chunk, "content_hash")
             or metadata.get("title") != title
             or row[3] != settings.embedding_model
         ):
             return False
     return True
+
+
+def chunk_field(chunk: Any, name: str) -> Any:
+    if hasattr(chunk, name):
+        return getattr(chunk, name)
+    return chunk[name]
 
 
 def clear_chapter_chunks(*, chapter_id: str) -> int:
