@@ -91,4 +91,32 @@ describe('AuthorRagService', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('passes the unpublished-content flag for author continuity retrieval', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestBody = '';
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      requestBody = String(init?.body);
+      return { ok: true, json: async () => ({ items: [] }) };
+    }) as typeof fetch;
+
+    try {
+      await createService().retrieve({
+        novelId: 'novel_1',
+        query: '人物关系',
+        topK: 6,
+        maxChapterOrder: 12,
+        includeUnpublished: true,
+      });
+      assert.deepEqual(JSON.parse(requestBody), {
+        novelId: 'novel_1',
+        query: '人物关系',
+        topK: 6,
+        maxChapterOrder: 12,
+        includeUnpublished: true,
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

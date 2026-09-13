@@ -31,9 +31,26 @@ import { UpdateChapterScheduleDto } from './dto/update-chapter-schedule.dto';
 import { UpdateNovelLifecycleDto } from './dto/update-novel-lifecycle.dto';
 import { UpdateNovelDto } from './dto/update-novel.dto';
 import { UpdateVolumeDto } from './dto/update-volume.dto';
-import { AuthorRagService } from './author-rag.service';
+import { AuthorRagService, type RagIndexStatus } from './author-rag.service';
 
 const AUTOSAVE_SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
+
+export type RagEvaluationResult = {
+  generatedAt: string;
+  sampleSize: number;
+  evaluatedCases: number;
+  hitAt1: number;
+  hitAt3: number;
+  hitAt5: number;
+  averageRank: number | null;
+  cases: Array<{
+    chapterId: string;
+    chapterOrder: number;
+    title: string;
+    rank: number | null;
+  }>;
+  status: RagIndexStatus;
+};
 
 @Injectable()
 export class AuthorService {
@@ -64,6 +81,78 @@ export class AuthorService {
     const result = await this.ragService.indexNovel({ novelId });
     return {
       ...result,
+      status: await this.ragService.getNovelIndexStatus(novelId),
+    };
+  }
+
+  async evaluateNovelRag(user: RequestUser, novelId: string): Promise<RagEvaluationResult> {
+    await this.assertNovelAccess(user, novelId);
+    if (!this.ragService) {
+      throw new ServiceUnavailableException('RAG service is not available.');
+    }
+
+    const status = await this.ragService.getNovelIndexStatus(novelId);
+    if (!status.enabled) {
+      throw new ServiceUnavailableException('RAG is disabled. Set RAG_ENABLED=true first.');
+    }
+
+    const chapters = await this.prisma.chapter.findMany({
+      where: {
+        novelId,
+        deletedAt: null,
+        status: ChapterStatus.PUBLISHED,
+      },
+      orderBy: { orderIndex: 'asc' },
+      select: { id: true, title: true, content: true, orderIndex: true },
+    });
+    const sample = this.selectRagEvaluationSample(chapters, 12);
+    const cases: RagEvaluationResult['cases'] = [];
+
+    for (const chapter of sample) {
+      const firstParagraph = chapter.content
+        .split(/\r?\n\s*\r?\n/)
+        .map((paragraph) => paragraph.trim())
+        .find(Boolean);
+      const query = `${chapter.title}\n${(firstParagraph || chapter.content).slice(0, 360)}`;
+      const items = await this.ragService.retrieve({
+        novelId,
+        query,
+        topK: 5,
+        maxChapterOrder: chapter.orderIndex,
+      });
+      const chapterOrderById = new Map<string, number>();
+      for (const item of items) {
+        if (
+          typeof item.chapterId === 'string' &&
+          !chapterOrderById.has(item.chapterId)
+        ) {
+          chapterOrderById.set(item.chapterId, chapterOrderById.size + 1);
+        }
+      }
+      cases.push({
+        chapterId: chapter.id,
+        chapterOrder: chapter.orderIndex,
+        title: chapter.title,
+        rank: chapterOrderById.get(chapter.id) ?? null,
+      });
+    }
+
+    const ranked = cases.filter((item) => item.rank !== null);
+    return {
+      generatedAt: new Date().toISOString(),
+      sampleSize: sample.length,
+      evaluatedCases: cases.length,
+      hitAt1: cases.filter((item) => item.rank === 1).length,
+      hitAt3: cases.filter((item) => item.rank !== null && item.rank <= 3).length,
+      hitAt5: cases.filter((item) => item.rank !== null && item.rank <= 5).length,
+      averageRank: ranked.length
+        ? Number(
+            (
+              ranked.reduce((total, item) => total + (item.rank ?? 0), 0) / ranked.length
+            ).toFixed(2),
+          )
+        : null,
+      cases,
       status: await this.ragService.getNovelIndexStatus(novelId),
     };
   }
@@ -1025,6 +1114,17 @@ export class AuthorService {
     if (!category) {
       throw new NotFoundException('分类不存在');
     }
+  }
+
+  private selectRagEvaluationSample<
+    T extends { orderIndex: number },
+  >(chapters: T[], limit: number): T[] {
+    if (chapters.length <= limit) return chapters;
+    const indexes = new Set<number>();
+    for (let index = 0; index < limit; index += 1) {
+      indexes.add(Math.round((index * (chapters.length - 1)) / (limit - 1)));
+    }
+    return [...indexes].sort((left, right) => left - right).map((index) => chapters[index]);
   }
 
   private async ensureNovelOwnership(user: RequestUser, novelId: string) {

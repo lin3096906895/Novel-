@@ -345,6 +345,23 @@ export interface AuthorRagIndexStatus {
   embeddingModel: string;
 }
 
+export interface AuthorRagEvaluationResult {
+  generatedAt: string;
+  sampleSize: number;
+  evaluatedCases: number;
+  hitAt1: number;
+  hitAt3: number;
+  hitAt5: number;
+  averageRank: number | null;
+  cases: Array<{
+    chapterId: string;
+    chapterOrder: number;
+    title: string;
+    rank: number | null;
+  }>;
+  status: AuthorRagIndexStatus;
+}
+
 export interface AuthorCollectionTaskPreview {
   taskId: string;
   createdAt: string;

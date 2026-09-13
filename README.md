@@ -126,7 +126,9 @@ Invoke-WebRequest http://127.0.0.1:8000/health
 corepack pnpm --filter @novel/server rag:reindex -- --novel-id "作品 ID"
 ```
 
-启动 NestJS 前，请在根目录 `.env` 中设置 `RAG_ENABLED=true`、`RAG_SERVICE_URL=http://127.0.0.1:8000`，并让 `INTERNAL_RAG_TOKEN` 与 Compose 中一致。章节保存/提交后会异步建立向量索引；作者 AI 辅助会在启用 RAG 时检索当前章节之前的内容，并在返回中附带来源章节。
+启动 NestJS 前，请在根目录 `.env` 中设置 `RAG_ENABLED=true`、`RAG_SERVICE_URL=http://127.0.0.1:8000`，并让 `INTERNAL_RAG_TOKEN` 与 Compose 中一致。章节保存/提交后会异步建立向量索引；如果章节内容和标题没有变化，索引服务会跳过重复 embedding，只更新章节顺序元数据。作者 AI 辅助会在启用 RAG 时检索当前章节之前的内容，并在返回中附带来源章节。
+
+作者端的“作品记忆库”卡片会展示索引进度，并提供“同步索引”和“检索评测”。检索评测会从已发布章节中均匀抽样最多 12 章，以章节标题和首段作为查询，统计 Top 1/3/5 命中率与平均排名；它用于验证本地 RAG 链路和索引质量，不代表通用语义模型的离线 benchmark。
 
 如果构建时 PyPI 下载超时，可覆盖 Python 包源，例如：
 
@@ -200,6 +202,9 @@ POST   /api/author/chapters/:chapterId/restore
 DELETE /api/author/chapters/:chapterId/permanent
 PUT    /api/author/novels/:novelId/chapters/order
 POST   /api/author/novels/:novelId/chapters/batch-delete
+GET    /api/author/novels/:novelId/rag/status
+POST   /api/author/novels/:novelId/rag/reindex
+POST   /api/author/novels/:novelId/rag/evaluate
 POST   /api/author/collection-tasks/preview
 POST   /api/author/collection-tasks/:taskId/commit
 GET    /api/author/novels/:novelId/announcements

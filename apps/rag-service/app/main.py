@@ -8,10 +8,13 @@ from pydantic import BaseModel, Field
 
 from .chunking import split_chapter
 from .db import (
+    clear_chapter_chunks,
     get_novel_index_status,
+    is_chapter_index_current,
     load_novel_chapters,
     replace_chapter_chunks,
     retrieve_chunks,
+    update_chapter_chunk_order,
 )
 from .embeddings import embed_texts
 from .settings import settings
@@ -32,6 +35,7 @@ class RetrieveRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
     topK: int = Field(default=8, ge=1, le=30)
     maxChapterOrder: int | None = Field(default=None, ge=0)
+    includeUnpublished: bool = False
 
 
 class IndexNovelRequest(BaseModel):
@@ -62,8 +66,28 @@ def health() -> dict[str, object]:
 async def index_chapter(payload: IndexChapterRequest) -> dict[str, object]:
     chunks = split_chapter(payload.content)
     if not chunks:
-        raise HTTPException(status_code=400, detail="Chapter content is empty after normalization")
+        try:
+            deleted = clear_chapter_chunks(chapter_id=payload.chapterId)
+        except Exception as error:
+            raise HTTPException(status_code=502, detail=f"RAG indexing failed: {error}") from error
+        return {
+            "indexed": 0,
+            "cleared": deleted > 0,
+            "changed": deleted > 0,
+            "embeddingModel": settings.embedding_model,
+        }
     try:
+        if is_chapter_index_current(chapter_id=payload.chapterId, title=payload.title, chunks=chunks):
+            update_chapter_chunk_order(
+                chapter_id=payload.chapterId,
+                chapter_order=payload.chapterOrder,
+            )
+            return {
+                "indexed": len(chunks),
+                "skipped": True,
+                "changed": False,
+                "embeddingModel": settings.embedding_model,
+            }
         vectors = await embed_texts([chunk.content for chunk in chunks])
         rows = [
             {
@@ -87,7 +111,12 @@ async def index_chapter(payload: IndexChapterRequest) -> dict[str, object]:
         )
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"RAG indexing failed: {error}") from error
-    return {"indexed": count, "embeddingModel": settings.embedding_model}
+    return {
+        "indexed": count,
+        "skipped": False,
+        "changed": True,
+        "embeddingModel": settings.embedding_model,
+    }
 
 
 @app.post("/v1/retrieve", dependencies=[Depends(verify_internal_token)])
@@ -101,6 +130,7 @@ async def retrieve(payload: RetrieveRequest) -> dict[str, object]:
             query_terms=extract_query_terms(payload.query),
             top_k=payload.topK,
             max_chapter_order=payload.maxChapterOrder,
+            include_unpublished=payload.includeUnpublished,
         )
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"RAG retrieval failed: {error}") from error
@@ -115,9 +145,21 @@ async def index_novel(payload: IndexNovelRequest) -> dict[str, object]:
         raise HTTPException(status_code=404, detail="Novel has no indexable chapters")
 
     indexed_chunks = 0
+    changed_chapters = 0
+    skipped_chapters = 0
+    cleared_chapters = 0
     for chapter in chapters:
         chunks = split_chapter(chapter["content"])
         if not chunks:
+            if clear_chapter_chunks(chapter_id=chapter["id"]) > 0:
+                cleared_chapters += 1
+            continue
+        if is_chapter_index_current(chapter_id=chapter["id"], title=chapter["title"], chunks=chunks):
+            update_chapter_chunk_order(
+                chapter_id=chapter["id"],
+                chapter_order=chapter["orderIndex"],
+            )
+            skipped_chapters += 1
             continue
         vectors = await embed_texts([chunk.content for chunk in chunks])
         rows = [
@@ -143,11 +185,15 @@ async def index_novel(payload: IndexNovelRequest) -> dict[str, object]:
             chapter_order=chapter["orderIndex"],
             chunks=rows,
         )
+        changed_chapters += 1
 
     return {
         "novelId": payload.novelId,
         "indexedChapters": len(chapters),
         "indexedChunks": indexed_chunks,
+        "changedChapters": changed_chapters,
+        "skippedChapters": skipped_chapters,
+        "clearedChapters": cleared_chapters,
         "durationMs": round((perf_counter() - started_at) * 1000),
         "embeddingMode": settings.embedding_mode,
         "embeddingModel": settings.embedding_model,

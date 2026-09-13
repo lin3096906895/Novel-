@@ -51,6 +51,7 @@ import type {
   AuthorCollectionJsonAnalysis,
   AuthorDashboard,
   AuthorNovel,
+  AuthorRagEvaluationResult,
   AuthorOnboarding,
   AuthorProfile,
   AuthorRagIndexStatus,
@@ -4453,6 +4454,8 @@ function AuthorAiAssistant({
   const [query, setQuery] = useState('');
   const [ragStatus, setRagStatus] = useState<AuthorRagIndexStatus>();
   const [isRagIndexing, setIsRagIndexing] = useState(false);
+  const [ragEvaluation, setRagEvaluation] = useState<AuthorRagEvaluationResult>();
+  const [isRagEvaluating, setIsRagEvaluating] = useState(false);
   const [ragError, setRagError] = useState<string>();
 
   const primaryActions: Array<{
@@ -4510,6 +4513,10 @@ function AuthorAiAssistant({
   }, [chapter?.id]);
 
   useEffect(() => {
+    setRagEvaluation(undefined);
+  }, [novelId]);
+
+  useEffect(() => {
     let active = true;
     setRagStatus(undefined);
     setRagError(undefined);
@@ -4542,6 +4549,21 @@ function AuthorAiAssistant({
       setRagError(err instanceof Error ? err.message : '作品记忆库重建失败');
     } finally {
       setIsRagIndexing(false);
+    }
+  }
+
+  async function evaluateNovel() {
+    if (!token || !novelId || isRagEvaluating) return;
+    setIsRagEvaluating(true);
+    setRagError(undefined);
+    try {
+      const evaluation = await api.evaluateAuthorNovelRag(token, novelId);
+      setRagEvaluation(evaluation);
+      setRagStatus(evaluation.status);
+    } catch (err) {
+      setRagError(err instanceof Error ? err.message : '作品检索评测失败');
+    } finally {
+      setIsRagEvaluating(false);
     }
   }
 
@@ -4616,22 +4638,68 @@ function AuthorAiAssistant({
             <small>
               {ragStatus
                 ? ragStatus.enabled
-                  ? `${ragStatus.indexedChapterCount}/${ragStatus.chapterCount} 章 · ${ragStatus.chunkCount} 个片段`
+                  ? `${ragStatus.indexedChapterCount}/${ragStatus.chapterCount} 章 · ${ragStatus.chunkCount} 个片段${ragStatus.pendingChapterCount ? ` · 待处理 ${ragStatus.pendingChapterCount}` : ''}`
                   : 'RAG 尚未启用'
                 : '正在读取索引状态...'}
             </small>
           </span>
-          <button
-            type="button"
-            disabled={disabled || isRagIndexing || !ragStatus?.enabled}
-            onClick={() => void reindexNovel()}
-          >
-            <RefreshCcw size={14} aria-hidden />
-            {isRagIndexing ? '重建中' : '重建索引'}
-          </button>
+          <div className="author-ai-memory-actions">
+            <button
+              type="button"
+              disabled={disabled || isRagIndexing || isRagEvaluating || !ragStatus?.enabled}
+              onClick={() => void reindexNovel()}
+            >
+              <RefreshCcw size={14} aria-hidden />
+              {isRagIndexing ? '增量同步中' : '同步索引'}
+            </button>
+            <button
+              type="button"
+              disabled={disabled || isRagIndexing || isRagEvaluating || !ragStatus?.enabled}
+              onClick={() => void evaluateNovel()}
+            >
+              <BarChart3 size={14} aria-hidden />
+              {isRagEvaluating ? '评测中' : '检索评测'}
+            </button>
+          </div>
         </div>
       )}
       {ragError && <p className="author-ai-memory-error">{ragError}</p>}
+      {ragEvaluation && (
+        <div className="author-ai-evaluation" aria-label="RAG 检索评测结果">
+          <div className="author-ai-evaluation-heading">
+            <span>
+              <BarChart3 size={15} aria-hidden />
+              检索质量快照
+            </span>
+            <small>抽样 {ragEvaluation.sampleSize} 章</small>
+          </div>
+          <div className="author-ai-evaluation-grid">
+            {[
+              ['Top 1', ragEvaluation.hitAt1],
+              ['Top 3', ragEvaluation.hitAt3],
+              ['Top 5', ragEvaluation.hitAt5],
+            ].map(([label, value]) => (
+              <div key={String(label)}>
+                <strong>
+                  {ragEvaluation.evaluatedCases
+                    ? `${Math.round((Number(value) / ragEvaluation.evaluatedCases) * 100)}%`
+                    : '--'}
+                </strong>
+                <small>{label} 命中</small>
+              </div>
+            ))}
+            <div>
+              <strong>{ragEvaluation.averageRank ?? '--'}</strong>
+              <small>平均排名</small>
+            </div>
+          </div>
+          <p>
+            {ragEvaluation.evaluatedCases
+              ? `已完成 ${ragEvaluation.evaluatedCases} 个自检样本，Top 5 命中 ${ragEvaluation.hitAt5} 个。`
+              : '当前没有可用于评测的已发布章节。'}
+          </p>
+        </div>
+      )}
       <div className="author-ai-tool-grid" aria-label="AI 创作工具">
         {primaryActions.map(({ action, label, description, icon }) => (
           <button

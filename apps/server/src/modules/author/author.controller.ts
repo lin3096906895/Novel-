@@ -374,6 +374,18 @@ export class AuthorController {
     };
   }
 
+  @Post('novels/:novelId/rag/evaluate')
+  async evaluateNovelRag(
+    @CurrentUser() user: RequestUser,
+    @Param('novelId') novelId: string,
+  ) {
+    return {
+      code: 0,
+      message: '作品检索评测已完成',
+      data: await this.authorService.evaluateNovelRag(user, novelId),
+    };
+  }
+
   @Post('ai-assistance')
   async assistDraftWithAi(@CurrentUser() user: RequestUser, @Body() dto: AuthorAiAssistanceDto) {
     return {

@@ -811,6 +811,16 @@ export const api = {
     });
   },
 
+  evaluateAuthorNovelRag(token: string, novelId: string) {
+    return request<import('./types').AuthorRagEvaluationResult>(
+      `/author/novels/${novelId}/rag/evaluate`,
+      {
+        method: 'POST',
+        token,
+      },
+    );
+  },
+
   updateAuthorVolume(
     token: string,
     volumeId: string,

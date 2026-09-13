@@ -14,6 +14,7 @@ type RetrieveInput = {
   query: string;
   topK?: number;
   maxChapterOrder?: number;
+  includeUnpublished?: boolean;
 };
 
 export type RagIndexStatus = {

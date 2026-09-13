@@ -144,6 +144,7 @@ describe('AuthorAiService', () => {
 
       assert.equal(retrieveInput?.novelId, 'novel_1');
       assert.equal(retrieveInput?.maxChapterOrder, 100);
+      assert.equal(retrieveInput?.includeUnpublished, true);
       assert.match(String(retrieveInput?.query), /王凌回到山门/);
       assert.match(requestBody, /前文检索参考/);
       assert.match(requestBody, /\[S1 第1章 第一章 若是修仙不努力\]/);

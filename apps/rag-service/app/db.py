@@ -56,6 +56,64 @@ def replace_chapter_chunks(
     return len(chunks)
 
 
+def is_chapter_index_current(
+    *,
+    chapter_id: str,
+    title: str,
+    chunks: list[dict[str, Any]],
+) -> bool:
+    """Return whether the stored chunks already represent this chapter.
+
+    Content hashes make chapter updates incremental while the title check keeps
+    citation metadata fresh when an author only renames a chapter.
+    """
+    with connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                '''
+                SELECT "chunkIndex", "contentHash", "metadata", "embeddingModel"
+                FROM "NovelChunk"
+                WHERE "chapterId" = %s
+                ORDER BY "chunkIndex" ASC
+                ''',
+                (chapter_id,),
+            )
+            rows = cursor.fetchall()
+
+    if len(rows) != len(chunks):
+        return False
+    for row, chunk in zip(rows, chunks, strict=True):
+        metadata = row[2] if isinstance(row[2], dict) else {}
+        if (
+            row[0] != chunk["index"]
+            or row[1] != chunk["content_hash"]
+            or metadata.get("title") != title
+            or row[3] != settings.embedding_model
+        ):
+            return False
+    return True
+
+
+def clear_chapter_chunks(*, chapter_id: str) -> int:
+    with connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute('DELETE FROM "NovelChunk" WHERE "chapterId" = %s', (chapter_id,))
+            deleted = cursor.rowcount
+        conn.commit()
+    return deleted
+
+
+def update_chapter_chunk_order(*, chapter_id: str, chapter_order: int) -> None:
+    """Keep denormalized order metadata current after chapter reordering."""
+    with connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                'UPDATE "NovelChunk" SET "chapterOrder" = %s, "updatedAt" = NOW() WHERE "chapterId" = %s',
+                (chapter_order, chapter_id),
+            )
+        conn.commit()
+
+
 def retrieve_chunks(
     *,
     novel_id: str,
@@ -64,13 +122,14 @@ def retrieve_chunks(
     query_terms: list[str],
     top_k: int,
     max_chapter_order: int | None,
+    include_unpublished: bool = False,
 ) -> list[dict[str, Any]]:
     with connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
                 '''
                 WITH scored AS (
-                  SELECT nc."chapterId", nc."chapterOrder", nc."chunkIndex", nc."content", nc."metadata",
+                  SELECT nc."chapterId", c."orderIndex" AS "chapterOrder", nc."chunkIndex", nc."content", nc."metadata",
                          1 - (nc."embedding" <=> %s::vector) AS vector_score,
                          GREATEST(
                            similarity(LOWER(nc."content"), LOWER(%s)),
@@ -90,9 +149,10 @@ def retrieve_chunks(
                   INNER JOIN "Chapter" AS c ON c."id" = nc."chapterId"
                   WHERE nc."novelId" = %s
                     AND c."deletedAt" IS NULL
+                    AND (%s::boolean OR c."status" = 'PUBLISHED')
                     AND nc."embedding" IS NOT NULL
                     AND nc."embeddingModel" = %s
-                    AND (%s::integer IS NULL OR nc."chapterOrder" <= %s)
+                    AND (%s::integer IS NULL OR c."orderIndex" <= %s)
                 )
                 SELECT "chapterId", "chapterOrder", "chunkIndex", "content", "metadata",
                        vector_score, lexical_score,
@@ -106,6 +166,7 @@ def retrieve_chunks(
                     query,
                     query_terms,
                     novel_id,
+                    include_unpublished,
                     settings.embedding_model,
                     max_chapter_order,
                     max_chapter_order,

@@ -76,6 +76,7 @@ export class AuthorAiService {
           query: this.buildRetrievalQuery(dto),
           topK: 6,
           maxChapterOrder: ragContext.maxChapterOrder,
+          includeUnpublished: true,
         });
       } catch (error) {
         this.logger.warn(
