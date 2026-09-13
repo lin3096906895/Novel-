@@ -20,6 +20,7 @@ import { AuthorAnnouncementsService } from './author-announcements.service';
 import { AuthorAiService } from './author-ai.service';
 import { AuthorCalendarService } from './author-calendar.service';
 import { AuthorCollectionService } from './author-collection.service';
+import { AuthorMemoryService } from './author-memory.service';
 import { AuthorService } from './author.service';
 import { AuthorCalendarQueryDto } from './dto/author-calendar-query.dto';
 import { AuthorAiAssistanceDto } from './dto/author-ai-assistance.dto';
@@ -29,6 +30,7 @@ import { BatchDeleteChaptersDto } from './dto/batch-delete-chapters.dto';
 import { CreateChapterDto } from './dto/create-chapter.dto';
 import { CreateAuthorCalendarEventDto } from './dto/create-author-calendar-event.dto';
 import { CreateNovelDto } from './dto/create-novel.dto';
+import { CreateNovelMemoryDto } from './dto/create-novel-memory.dto';
 import { CreateVolumeDto } from './dto/create-volume.dto';
 import { CommitCollectionTaskDto } from './dto/commit-collection-task.dto';
 import { PreviewCollectionTaskDto } from './dto/preview-collection-task.dto';
@@ -40,6 +42,7 @@ import { UpdateAuthorCalendarEventDto } from './dto/update-author-calendar-event
 import { UpdateChapterScheduleDto } from './dto/update-chapter-schedule.dto';
 import { UpdateNovelLifecycleDto } from './dto/update-novel-lifecycle.dto';
 import { UpdateNovelDto } from './dto/update-novel.dto';
+import { UpdateNovelMemoryDto } from './dto/update-novel-memory.dto';
 import { UpdateVolumeDto } from './dto/update-volume.dto';
 
 @Controller('author')
@@ -52,6 +55,7 @@ export class AuthorController {
     private readonly announcementsService: AuthorAnnouncementsService,
     private readonly calendarService: AuthorCalendarService,
     private readonly collectionService: AuthorCollectionService,
+    private readonly memoryService: AuthorMemoryService,
   ) {}
 
   @Post('collection-tasks/preview')
@@ -156,6 +160,56 @@ export class AuthorController {
       code: 0,
       message: 'ok',
       data: await this.authorService.findMyNovels(user),
+    };
+  }
+
+  @Get('novels/:novelId/memories')
+  async listNovelMemories(
+    @CurrentUser() user: RequestUser,
+    @Param('novelId') novelId: string,
+  ) {
+    return {
+      code: 0,
+      message: 'ok',
+      data: await this.memoryService.list(user, novelId),
+    };
+  }
+
+  @Post('novels/:novelId/memories')
+  async createNovelMemory(
+    @CurrentUser() user: RequestUser,
+    @Param('novelId') novelId: string,
+    @Body() dto: CreateNovelMemoryDto,
+  ) {
+    return {
+      code: 0,
+      message: '记忆条目已创建',
+      data: await this.memoryService.create(user, novelId, dto),
+    };
+  }
+
+  @Patch('memories/:memoryId')
+  async updateNovelMemory(
+    @CurrentUser() user: RequestUser,
+    @Param('memoryId') memoryId: string,
+    @Body() dto: UpdateNovelMemoryDto,
+  ) {
+    return {
+      code: 0,
+      message: '记忆条目已更新',
+      data: await this.memoryService.update(user, memoryId, dto),
+    };
+  }
+
+  @Delete('memories/:memoryId')
+  async deleteNovelMemory(
+    @CurrentUser() user: RequestUser,
+    @Param('memoryId') memoryId: string,
+  ) {
+    return {
+      code: 0,
+      message: '记忆条目已删除',
+      data: await this.memoryService.delete(user, memoryId),
     };
   }
 

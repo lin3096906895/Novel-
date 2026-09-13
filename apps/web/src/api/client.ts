@@ -821,6 +821,55 @@ export const api = {
     );
   },
 
+  listAuthorNovelMemories(token: string, novelId: string) {
+    return request<import('./types').NovelMemory[]>(`/author/novels/${novelId}/memories`, { token });
+  },
+
+  createAuthorNovelMemory(
+    token: string,
+    novelId: string,
+    payload: {
+      type: import('./types').NovelMemoryType;
+      title: string;
+      content: string;
+      sourceChapterId?: string | null;
+      isConfirmed?: boolean;
+      orderIndex?: number;
+    },
+  ) {
+    return request<import('./types').NovelMemory>(`/author/novels/${novelId}/memories`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateAuthorNovelMemory(
+    token: string,
+    memoryId: string,
+    payload: Partial<{
+      type: import('./types').NovelMemoryType;
+      title: string;
+      content: string;
+      sourceChapterId: string | null;
+      isConfirmed: boolean;
+      orderIndex: number;
+    }>,
+  ) {
+    return request<import('./types').NovelMemory>(`/author/memories/${memoryId}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(payload),
+    });
+  },
+
+  deleteAuthorNovelMemory(token: string, memoryId: string) {
+    return request<{ deletedId: string }>(`/author/memories/${memoryId}`, {
+      method: 'DELETE',
+      token,
+    });
+  },
+
   updateAuthorVolume(
     token: string,
     volumeId: string,

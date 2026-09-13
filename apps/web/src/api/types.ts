@@ -375,6 +375,31 @@ export interface AuthorRagReindexResult {
   status: AuthorRagIndexStatus;
 }
 
+export type NovelMemoryType =
+  | 'CHARACTER'
+  | 'RELATIONSHIP'
+  | 'WORLDVIEW'
+  | 'TIMELINE'
+  | 'FORESHADOWING';
+
+export interface NovelMemory {
+  id: string;
+  novelId: string;
+  type: NovelMemoryType;
+  title: string;
+  content: string;
+  sourceChapterId?: string | null;
+  sourceChapter?: {
+    id: string;
+    title: string;
+    orderIndex: number;
+  } | null;
+  isConfirmed: boolean;
+  orderIndex: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuthorCollectionTaskPreview {
   taskId: string;
   createdAt: string;

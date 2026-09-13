@@ -115,6 +115,14 @@ enum SensitiveWordScope {
   COMMENT
 }
 
+enum NovelMemoryType {
+  CHARACTER
+  RELATIONSHIP
+  WORLDVIEW
+  TIMELINE
+  FORESHADOWING
+}
+
 model User {
   id                         String                    @id @default(cuid())
   email                      String                    @unique
@@ -278,6 +286,7 @@ model Novel {
   ratings        NovelRating[]
   recommendItem  RecommendItem[]
   chunks         NovelChunk[]
+  memories       NovelMemory[]
 
   @@index([status, updatedAt])
   @@index([categoryId, status])
@@ -357,6 +366,7 @@ model Chapter {
   paragraphComments ParagraphComment[]
   versions          ChapterVersion[]
   chunks            NovelChunk[]
+  memorySources     NovelMemory[]      @relation("NovelMemorySourceChapter")
 
   @@index([novelId, orderIndex])
   @@index([novelId, status, orderIndex])
@@ -388,6 +398,24 @@ model NovelChunk {
   @@index([novelId, chapterOrder])
   @@index([chapterId, chunkIndex])
   @@index([contentHash])
+}
+
+model NovelMemory {
+  id              String          @id @default(cuid())
+  novelId         String
+  type            NovelMemoryType
+  title           String
+  content         String
+  sourceChapterId String?
+  isConfirmed     Boolean         @default(false)
+  orderIndex      Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  novel           Novel           @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  sourceChapter   Chapter?        @relation("NovelMemorySourceChapter", fields: [sourceChapterId], references: [id], onDelete: SetNull)
+
+  @@index([novelId, type, orderIndex])
+  @@index([sourceChapterId])
 }
 
 model ChapterVersion {

@@ -7,6 +7,7 @@ import { AuthorAnnouncementsService } from './author-announcements.service';
 import { AuthorAiService } from './author-ai.service';
 import { AuthorCalendarService } from './author-calendar.service';
 import { AuthorCollectionService } from './author-collection.service';
+import { AuthorMemoryService } from './author-memory.service';
 import { AuthorController } from './author.controller';
 import { AuthorRagService } from './author-rag.service';
 import { AuthorService } from './author.service';
@@ -21,6 +22,7 @@ import { AuthorService } from './author.service';
     AuthorAnnouncementsService,
     AuthorCalendarService,
     AuthorCollectionService,
+    AuthorMemoryService,
     AuthorRagService,
   ],
   exports: [AuthorRagService],

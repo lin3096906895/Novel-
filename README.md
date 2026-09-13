@@ -205,6 +205,10 @@ POST   /api/author/novels/:novelId/chapters/batch-delete
 GET    /api/author/novels/:novelId/rag/status
 POST   /api/author/novels/:novelId/rag/reindex
 POST   /api/author/novels/:novelId/rag/evaluate
+GET    /api/author/novels/:novelId/memories
+POST   /api/author/novels/:novelId/memories
+PATCH  /api/author/memories/:memoryId
+DELETE /api/author/memories/:memoryId
 POST   /api/author/collection-tasks/preview
 POST   /api/author/collection-tasks/:taskId/commit
 GET    /api/author/novels/:novelId/announcements

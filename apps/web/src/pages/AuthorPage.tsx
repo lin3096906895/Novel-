@@ -60,6 +60,8 @@ import type {
   DeletedChapter,
   DraftChapter,
   NovelAnnouncement,
+  NovelMemory,
+  NovelMemoryType,
   NovelVolume,
 } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
@@ -109,7 +111,7 @@ type AuthorWorkspaceView =
   | 'collection'
   | 'planning'
   | 'profile';
-type AuthorWorkView = 'novel' | 'catalog';
+type AuthorWorkView = 'novel' | 'catalog' | 'memory';
 
 const authorWorkspaceLabels: Record<AuthorWorkspaceView, string> = {
   home: '工作台',
@@ -124,6 +126,7 @@ const authorWorkspaceLabels: Record<AuthorWorkspaceView, string> = {
 const authorWorkLabels: Record<AuthorWorkView, string> = {
   novel: '\u4f5c\u54c1\u4fe1\u606f',
   catalog: '\u76ee\u5f55\u7ba1\u7406',
+  memory: '\u4f5c\u54c1\u77e5\u8bc6\u5e93',
 };
 
 export function AuthorPage() {
@@ -143,6 +146,9 @@ export function AuthorPage() {
   const [isOnboardingLoading, setIsOnboardingLoading] = useState(false);
   const [selectedNovelId, setSelectedNovelId] = useState('');
   const [selectedChapterId, setSelectedChapterId] = useState('');
+  const [novelMemories, setNovelMemories] = useState<NovelMemory[]>([]);
+  const [isLoadingMemories, setIsLoadingMemories] = useState(false);
+  const [isUpdatingMemory, setIsUpdatingMemory] = useState(false);
   const [workspaceView, setWorkspaceView] = useState<AuthorWorkspaceView>(() =>
     new URLSearchParams(location.search).get('view') === 'works' ? 'works' : 'home',
   );
@@ -216,6 +222,23 @@ export function AuthorPage() {
       setIsCalendarLoading(false);
     }
   }
+
+  async function loadNovelMemories(activeToken: string, novelId: string) {
+    setIsLoadingMemories(true);
+    try {
+      setNovelMemories(await api.listAuthorNovelMemories(activeToken, novelId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '作品知识库加载失败');
+    } finally {
+      setIsLoadingMemories(false);
+    }
+  }
+
+  useEffect(() => {
+    if (token && selectedNovel && workView === 'memory') {
+      void loadNovelMemories(token, selectedNovel.id);
+    }
+  }, [token, selectedNovel?.id, workView]);
 
   async function loadDashboard(activeToken: string, days: number) {
     setIsDashboardLoading(true);
@@ -914,7 +937,7 @@ export function AuthorPage() {
                       </button>
                     </div>
                     <nav className="author-work-tabs" aria-label="作品管理工具">
-                      {(['novel', 'catalog'] as AuthorWorkView[]).map((view) => (
+                      {(['novel', 'catalog', 'memory'] as AuthorWorkView[]).map((view) => (
                         <button
                           aria-current={workView === view ? 'page' : undefined}
                           className={workView === view ? 'active' : ''}
@@ -925,6 +948,9 @@ export function AuthorPage() {
                           {authorWorkLabels[view]}
                           {view === 'catalog' && selectedNovel._count.chapters > 0 && (
                             <span>{selectedNovel._count.chapters}</span>
+                          )}
+                          {view === 'memory' && novelMemories.length > 0 && (
+                            <span>{novelMemories.length}</span>
                           )}
                         </button>
                       ))}
@@ -1317,6 +1343,58 @@ export function AuthorPage() {
                     }}
                   />
                 </>
+              )}
+
+              {!isCreateNovelOpen && selectedNovel && workView === 'memory' && token && (
+                <NovelKnowledgeBasePanel
+                  chapters={selectedNovel.chapters ?? []}
+                  disabled={isUpdatingMemory || !token}
+                  isLoading={isLoadingMemories}
+                  memories={novelMemories}
+                  novel={selectedNovel}
+                  onCreate={async (payload) => {
+                    setIsUpdatingMemory(true);
+                    setError(undefined);
+                    try {
+                      await api.createAuthorNovelMemory(token, selectedNovel.id, payload);
+                      await loadNovelMemories(token, selectedNovel.id);
+                      setMessage('知识库记忆已创建');
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : '记忆创建失败');
+                      throw err;
+                    } finally {
+                      setIsUpdatingMemory(false);
+                    }
+                  }}
+                  onUpdate={async (memoryId, payload) => {
+                    setIsUpdatingMemory(true);
+                    setError(undefined);
+                    try {
+                      await api.updateAuthorNovelMemory(token, memoryId, payload);
+                      await loadNovelMemories(token, selectedNovel.id);
+                      setMessage('知识库记忆已更新');
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : '记忆更新失败');
+                      throw err;
+                    } finally {
+                      setIsUpdatingMemory(false);
+                    }
+                  }}
+                  onDelete={async (memoryId) => {
+                    setIsUpdatingMemory(true);
+                    setError(undefined);
+                    try {
+                      await api.deleteAuthorNovelMemory(token, memoryId);
+                      await loadNovelMemories(token, selectedNovel.id);
+                      setMessage('知识库记忆已删除');
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : '记忆删除失败');
+                      throw err;
+                    } finally {
+                      setIsUpdatingMemory(false);
+                    }
+                  }}
+                />
               )}
 
               {!isCreateNovelOpen && !selectedNovel && !isLoading && (
@@ -4815,6 +4893,283 @@ function AuthorAiAssistant({
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+function NovelKnowledgeBasePanel({
+  novel,
+  chapters,
+  memories,
+  isLoading,
+  disabled,
+  onCreate,
+  onUpdate,
+  onDelete,
+}: {
+  novel: AuthorNovel;
+  chapters: DraftChapter[];
+  memories: NovelMemory[];
+  isLoading: boolean;
+  disabled: boolean;
+  onCreate(payload: {
+    type: NovelMemoryType;
+    title: string;
+    content: string;
+    sourceChapterId?: string | null;
+    isConfirmed?: boolean;
+  }): Promise<void>;
+  onUpdate(
+    memoryId: string,
+    payload: Partial<{
+      type: NovelMemoryType;
+      title: string;
+      content: string;
+      sourceChapterId: string | null;
+      isConfirmed: boolean;
+    }>,
+  ): Promise<void>;
+  onDelete(memoryId: string): Promise<void>;
+}) {
+  const memoryLabels: Record<NovelMemoryType, string> = {
+    CHARACTER: '人物',
+    RELATIONSHIP: '关系',
+    WORLDVIEW: '世界观',
+    TIMELINE: '时间线',
+    FORESHADOWING: '伏笔',
+  };
+  const memoryColors: Record<NovelMemoryType, string> = {
+    CHARACTER: 'violet',
+    RELATIONSHIP: 'rose',
+    WORLDVIEW: 'teal',
+    TIMELINE: 'amber',
+    FORESHADOWING: 'blue',
+  };
+  const [activeType, setActiveType] = useState<NovelMemoryType | 'ALL'>('ALL');
+  const [type, setType] = useState<NovelMemoryType>('CHARACTER');
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [sourceChapterId, setSourceChapterId] = useState('');
+  const [isConfirmed, setIsConfirmed] = useState(false);
+  const [editingId, setEditingId] = useState<string>();
+  const [ragStatus, setRagStatus] = useState<AuthorRagIndexStatus>();
+  const [ragEvaluation, setRagEvaluation] = useState<AuthorRagEvaluationResult>();
+  const [isRagLoading, setIsRagLoading] = useState(false);
+  const [ragMessage, setRagMessage] = useState('');
+  const [ragError, setRagError] = useState('');
+  const { token } = useAuth();
+
+  useEffect(() => {
+    if (!token) return;
+    let active = true;
+    setRagError('');
+    api
+      .getAuthorRagStatus(token, novel.id)
+      .then((status) => {
+        if (active) setRagStatus(status);
+      })
+      .catch((err) => {
+        if (active) setRagError(err instanceof Error ? err.message : '索引状态加载失败');
+      });
+    return () => {
+      active = false;
+    };
+  }, [novel.id, token]);
+
+  const visibleMemories = activeType === 'ALL'
+    ? memories
+    : memories.filter((memory) => memory.type === activeType);
+
+  function resetForm() {
+    setEditingId(undefined);
+    setType('CHARACTER');
+    setTitle('');
+    setContent('');
+    setSourceChapterId('');
+    setIsConfirmed(false);
+  }
+
+  function beginEdit(memory: NovelMemory) {
+    setEditingId(memory.id);
+    setType(memory.type);
+    setTitle(memory.title);
+    setContent(memory.content);
+    setSourceChapterId(memory.sourceChapterId ?? '');
+    setIsConfirmed(memory.isConfirmed);
+    window.setTimeout(() => document.getElementById('novel-memory-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+  }
+
+  async function submitMemory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const payload = {
+      type,
+      title: title.trim(),
+      content: content.trim(),
+      sourceChapterId: sourceChapterId || null,
+      isConfirmed,
+    };
+    if (!payload.title || !payload.content) return;
+    if (editingId) {
+      await onUpdate(editingId, payload);
+    } else {
+      await onCreate(payload);
+    }
+    resetForm();
+  }
+
+  async function syncRag() {
+    if (!token || isRagLoading) return;
+    setIsRagLoading(true);
+    setRagError('');
+    setRagMessage('');
+    try {
+      const result = await api.reindexAuthorNovel(token, novel.id);
+      setRagStatus(result.status);
+      setRagMessage(`索引同步完成：更新 ${result.changedChapters} 章，跳过 ${result.skippedChapters} 章。`);
+    } catch (err) {
+      setRagError(err instanceof Error ? err.message : '索引同步失败');
+    } finally {
+      setIsRagLoading(false);
+    }
+  }
+
+  async function evaluateRag() {
+    if (!token || isRagLoading) return;
+    setIsRagLoading(true);
+    setRagError('');
+    setRagMessage('');
+    try {
+      const result = await api.evaluateAuthorNovelRag(token, novel.id);
+      setRagEvaluation(result);
+      setRagStatus(result.status);
+    } catch (err) {
+      setRagError(err instanceof Error ? err.message : '检索评测失败');
+    } finally {
+      setIsRagLoading(false);
+    }
+  }
+
+  return (
+    <section className="novel-knowledge-base">
+      <header className="knowledge-base-heading">
+        <div>
+          <p className="eyebrow">NOVEL KNOWLEDGE BASE</p>
+          <h2>作品知识库</h2>
+          <p>把人物、关系、世界观和伏笔从长篇正文里单独拎出来，AI 才能真正记住这部作品。</p>
+        </div>
+        <div className="knowledge-base-stat">
+          <strong>{memories.length}</strong>
+          <span>条结构化记忆</span>
+        </div>
+      </header>
+
+      <div className="knowledge-base-rag-status">
+        <Database size={18} aria-hidden />
+        <div>
+          <strong>文本向量索引</strong>
+          <span>
+            {ragStatus?.enabled
+              ? `${ragStatus.indexedChapterCount}/${ragStatus.chapterCount} 章 · ${ragStatus.chunkCount} 个片段 · ${ragStatus.embeddingModel}`
+              : ragStatus
+                ? 'RAG 尚未启用'
+                : '正在读取索引状态…'}
+          </span>
+        </div>
+        <div className="knowledge-base-rag-actions">
+          <button type="button" disabled={isRagLoading || !ragStatus?.enabled} onClick={() => void syncRag()}>
+            <RefreshCcw size={14} aria-hidden />
+            {isRagLoading ? '处理中…' : '同步索引'}
+          </button>
+          <button type="button" disabled={isRagLoading || !ragStatus?.enabled} onClick={() => void evaluateRag()}>
+            <BarChart3 size={14} aria-hidden />
+            检索评测
+          </button>
+        </div>
+      </div>
+      {ragMessage && <p className="knowledge-base-message">{ragMessage}</p>}
+      {ragError && <p className="knowledge-base-error">{ragError}</p>}
+      {ragEvaluation && (
+        <div className="knowledge-base-evaluation">
+          <strong>检索质量快照</strong>
+          <span>Top 1 {Math.round((ragEvaluation.hitAt1 / Math.max(ragEvaluation.evaluatedCases, 1)) * 100)}%</span>
+          <span>Top 3 {Math.round((ragEvaluation.hitAt3 / Math.max(ragEvaluation.evaluatedCases, 1)) * 100)}%</span>
+          <span>Top 5 {Math.round((ragEvaluation.hitAt5 / Math.max(ragEvaluation.evaluatedCases, 1)) * 100)}%</span>
+          <span>平均排名 {ragEvaluation.averageRank ?? '—'}</span>
+        </div>
+      )}
+
+      <div className="knowledge-base-layout">
+        <form id="novel-memory-form" className="panel knowledge-base-editor" onSubmit={(event) => void submitMemory(event)}>
+          <div className="knowledge-base-editor-heading">
+            <div>
+              <span className="eyebrow">{editingId ? 'EDIT MEMORY' : 'ADD MEMORY'}</span>
+              <h3>{editingId ? '编辑记忆条目' : '新增结构化记忆'}</h3>
+            </div>
+            {editingId && <button className="ghost-button" type="button" onClick={resetForm}>取消编辑</button>}
+          </div>
+          <label>
+            <span>记忆类型</span>
+            <select value={type} onChange={(event) => setType(event.target.value as NovelMemoryType)} disabled={disabled}>
+              {(Object.keys(memoryLabels) as NovelMemoryType[]).map((memoryType) => (
+                <option key={memoryType} value={memoryType}>{memoryLabels[memoryType]}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>标题</span>
+            <input value={title} maxLength={100} placeholder="例如：林泊｜档案修复师" onChange={(event) => setTitle(event.target.value)} disabled={disabled} />
+          </label>
+          <label>
+            <span>内容</span>
+            <textarea value={content} maxLength={4000} placeholder="写下稳定设定、人物动机或伏笔回收条件…" onChange={(event) => setContent(event.target.value)} disabled={disabled} />
+          </label>
+          <label>
+            <span>来源章节 <small>可选</small></span>
+            <select value={sourceChapterId} onChange={(event) => setSourceChapterId(event.target.value)} disabled={disabled}>
+              <option value="">不指定来源</option>
+              {chapters.map((chapter) => <option key={chapter.id} value={chapter.id}>第 {chapter.orderIndex} 章 · {chapter.title}</option>)}
+            </select>
+          </label>
+          <label className="knowledge-base-confirmed">
+            <input type="checkbox" checked={isConfirmed} onChange={(event) => setIsConfirmed(event.target.checked)} disabled={disabled} />
+            <span>标记为已确认设定</span>
+          </label>
+          <button className="primary-link" type="submit" disabled={disabled || !title.trim() || !content.trim()}>
+            <Save size={16} aria-hidden />
+            {editingId ? '保存修改' : '加入知识库'}
+          </button>
+        </form>
+
+        <div className="knowledge-base-list">
+          <div className="knowledge-base-filters" role="tablist" aria-label="记忆类型筛选">
+            <button className={activeType === 'ALL' ? 'active' : ''} type="button" onClick={() => setActiveType('ALL')}>全部 <span>{memories.length}</span></button>
+            {(Object.keys(memoryLabels) as NovelMemoryType[]).map((memoryType) => (
+              <button key={memoryType} className={activeType === memoryType ? 'active' : ''} type="button" onClick={() => setActiveType(memoryType)}>
+                {memoryLabels[memoryType]} <span>{memories.filter((memory) => memory.type === memoryType).length}</span>
+              </button>
+            ))}
+          </div>
+          {isLoading ? <p className="knowledge-base-empty">正在加载知识库…</p> : visibleMemories.length === 0 ? (
+            <div className="knowledge-base-empty"><Database size={24} aria-hidden /><strong>还没有结构化记忆</strong><span>从左侧添加第一条设定，后续一致性审校会优先参考它。</span></div>
+          ) : visibleMemories.map((memory) => (
+            <article className="knowledge-memory-card" key={memory.id}>
+              <div className="knowledge-memory-card-topline">
+                <span className={`knowledge-memory-type ${memoryColors[memory.type]}`}>{memoryLabels[memory.type]}</span>
+                {memory.isConfirmed && <span className="knowledge-memory-confirmed"><CircleCheckBig size={13} aria-hidden /> 已确认</span>}
+              </div>
+              <h3>{memory.title}</h3>
+              <p>{memory.content}</p>
+              <footer>
+                <span>{memory.sourceChapter ? `来源：第 ${memory.sourceChapter.orderIndex} 章` : '手动设定'}</span>
+                <div>
+                  <button type="button" onClick={() => beginEdit(memory)} disabled={disabled}><PencilLine size={14} aria-hidden /> 编辑</button>
+                  <button type="button" onClick={() => void onDelete(memory.id)} disabled={disabled}><Trash2 size={14} aria-hidden /> 删除</button>
+                </div>
+              </footer>
+            </article>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
