@@ -4651,7 +4651,11 @@ function AuthorAiAssistant({
           <div className="author-ai-memory-actions">
             <button
               type="button"
-              disabled={disabled || isRagIndexing || isRagEvaluating || !ragStatus?.enabled}
+              // Knowledge-base maintenance is independent from whether the
+              // currently selected chapter is editable (published chapters
+              // are read-only, but authors should still be able to sync the
+              // novel index).
+              disabled={isRagIndexing || isRagEvaluating || !ragStatus?.enabled || !token}
               onClick={() => void reindexNovel()}
             >
               <RefreshCcw size={14} aria-hidden />
@@ -4659,7 +4663,7 @@ function AuthorAiAssistant({
             </button>
             <button
               type="button"
-              disabled={disabled || isRagIndexing || isRagEvaluating || !ragStatus?.enabled}
+              disabled={isRagIndexing || isRagEvaluating || !ragStatus?.enabled || !token}
               onClick={() => void evaluateNovel()}
             >
               <BarChart3 size={14} aria-hidden />
