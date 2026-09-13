@@ -882,7 +882,7 @@ export function SettingsPage() {
 
   return (
     <section className="settings-page">
-      <header className="topbar">
+      <header className="topbar product-page-header settings-page-header">
         <div>
           <p className="eyebrow">偏好与账户</p>
           <h1>设置</h1>

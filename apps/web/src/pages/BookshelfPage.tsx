@@ -190,7 +190,7 @@ export function BookshelfPage() {
 
   return (
     <section className="bookshelf-page">
-      <header className="topbar">
+      <header className="topbar product-page-header bookshelf-page-header">
         <div>
           <p className="eyebrow">我的阅读</p>
           <h1>书架</h1>

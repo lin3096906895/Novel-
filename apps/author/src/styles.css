@@ -1,18 +1,25 @@
 .author-portal-shell {
   min-height: 100vh;
-  color: #1f2933;
-  background: #f5f7fa;
+  color: var(--ink-950, #18211f);
+  background:
+    radial-gradient(circle at 86% 4%, rgb(220 236 232 / 62%), transparent 30rem),
+    linear-gradient(145deg, #f8f6f0, #f2f4ef 58%, #f7f3ec);
 }
 
 .author-portal-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
   display: flex;
-  min-height: 64px;
+  min-height: 72px;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
   padding: 0 max(24px, calc((100vw - 1320px) / 2));
-  border-bottom: 1px solid #dfe6ed;
-  background: #ffffff;
+  border-bottom: 1px solid rgb(31 76 69 / 10%);
+  background: rgb(251 250 247 / 88%);
+  box-shadow: 0 10px 32px rgb(28 52 47 / 6%);
+  backdrop-filter: blur(18px);
 }
 
 .author-portal-brand,
@@ -24,17 +31,56 @@
 }
 
 .author-portal-brand {
-  color: #1f4d44;
-  font-size: 18px;
-  font-weight: 800;
+  gap: 12px;
+  color: var(--brand-900, #163d39);
 }
 
-.author-portal-brand svg {
-  color: #176b61;
+.author-portal-brand-symbol {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 12px 5px 12px 5px;
+  color: #fff;
+  background: linear-gradient(145deg, var(--accent-500, #df7357), var(--accent-600, #c75d43));
+  box-shadow: 0 8px 18px rgb(175 70 47 / 20%);
+  transform: rotate(-2deg);
+}
+
+.author-portal-brand-copy {
+  display: grid;
+  gap: 1px;
+}
+
+.author-portal-brand-copy strong {
+  font-family: 'STZhongsong', 'Songti SC', 'Noto Serif SC', serif;
+  font-size: 19px;
+  letter-spacing: 0.06em;
+}
+
+.author-portal-brand-copy small {
+  color: var(--ink-400, #8c9692);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
 }
 
 .author-portal-actions {
   justify-content: flex-end;
+}
+
+.author-portal-actions .ghost-button {
+  min-height: 38px;
+  border-color: rgb(31 76 69 / 14%);
+  border-radius: 11px;
+  color: var(--ink-600, #5b6864);
+  background: rgb(255 255 255 / 58%);
+}
+
+.author-portal-actions .ghost-button:hover {
+  border-color: var(--brand-100, #dcece8);
+  color: var(--brand-800, #1c514a);
+  background: var(--brand-50, #eef7f4);
 }
 
 .author-portal-user {
@@ -44,9 +90,9 @@
 }
 
 .author-portal-main {
-  width: min(1240px, 100%);
+  width: min(1360px, 100%);
   margin: 0 auto;
-  padding: 28px 24px 44px;
+  padding: 34px 28px 56px;
 }
 
 .author-portal-main.writing-mode {
@@ -55,7 +101,9 @@
 }
 
 .author-portal-shell.writing-mode {
-  background: #f3f5f7;
+  background:
+    radial-gradient(circle at 90% 0%, rgb(221 235 230 / 64%), transparent 32rem),
+    #f3f3ee;
 }
 
 .author-portal-main .login-page {
@@ -71,6 +119,10 @@
   .author-portal-brand span,
   .author-portal-user {
     display: none;
+  }
+
+  .author-portal-brand .author-portal-brand-symbol {
+    display: grid;
   }
 
   .author-portal-main {

@@ -68,7 +68,7 @@ export function FollowingPage() {
 
   return (
     <section className="following-page">
-      <header className="topbar">
+      <header className="topbar product-page-header following-page-header">
         <div>
           <p className="eyebrow">我的关注</p>
           <h1>关注的作者</h1>

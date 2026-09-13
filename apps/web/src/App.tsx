@@ -56,44 +56,60 @@ function App() {
       {!isReaderRoute && (
         <aside className="sidebar">
           <NavLink className="brand" to="/">
-            <BookOpen size={26} aria-hidden />
-            <span>阅界</span>
+            <span className="brand-symbol">
+              <BookOpen size={22} aria-hidden />
+            </span>
+            <span className="brand-copy">
+              <strong>阅界</strong>
+              <small>READING UNIVERSE</small>
+            </span>
           </NavLink>
           <nav className="nav-list" aria-label="主导航">
-            <NavLink className="nav-item" to="/">
-              <Library size={18} aria-hidden />
-              书城
-            </NavLink>
-            <NavLink className="nav-item" to="/rankings">
-              <Search size={18} aria-hidden />
-              榜单
-            </NavLink>
-            <NavLink className="nav-item" to="/bookshelf">
-              <BookOpen size={18} aria-hidden />
-              书架
-            </NavLink>
-            <NavLink className="nav-item" to="/following">
-              <UsersRound size={18} aria-hidden />
-              关注
-            </NavLink>
-            <a className="nav-item" href={authorPortalUrl}>
-              <PenLine size={18} aria-hidden />
-              写作
-            </a>
-            {user?.role === 'ADMIN' && (
-              <a className="nav-item" href={adminPortalUrl}>
-                <ShieldCheck size={18} aria-hidden />
-                管理后台
+            <div className="nav-section">
+              <span className="nav-section-label">发现</span>
+              <NavLink className="nav-item" to="/">
+                <Library size={18} aria-hidden />
+                书城
+              </NavLink>
+              <NavLink className="nav-item" to="/rankings">
+                <Search size={18} aria-hidden />
+                榜单
+              </NavLink>
+            </div>
+
+            <div className="nav-section">
+              <span className="nav-section-label">我的阅读</span>
+              <NavLink className="nav-item" to="/bookshelf">
+                <BookOpen size={18} aria-hidden />
+                书架
+              </NavLink>
+              <NavLink className="nav-item" to="/following">
+                <UsersRound size={18} aria-hidden />
+                关注
+              </NavLink>
+              <NavLink className="nav-item" to="/notifications">
+                <Bell size={18} aria-hidden />
+                通知
+              </NavLink>
+            </div>
+
+            <div className="nav-section">
+              <span className="nav-section-label">创作与管理</span>
+              <a className="nav-item" href={authorPortalUrl}>
+                <PenLine size={18} aria-hidden />
+                写作
               </a>
-            )}
-            <NavLink className="nav-item" to="/notifications">
-              <Bell size={18} aria-hidden />
-              通知
-            </NavLink>
-            <NavLink className="nav-item" to="/settings">
-              <Settings size={18} aria-hidden />
-              设置
-            </NavLink>
+              {user?.role === 'ADMIN' && (
+                <a className="nav-item" href={adminPortalUrl}>
+                  <ShieldCheck size={18} aria-hidden />
+                  管理后台
+                </a>
+              )}
+              <NavLink className="nav-item" to="/settings">
+                <Settings size={18} aria-hidden />
+                设置
+              </NavLink>
+            </div>
           </nav>
 
           {isAuthenticated && user ? (

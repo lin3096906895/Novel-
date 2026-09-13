@@ -16,6 +16,19 @@ type RetrieveInput = {
   maxChapterOrder?: number;
 };
 
+export type RagIndexStatus = {
+  enabled: boolean;
+  novelId: string;
+  chapterCount: number;
+  indexedChapterCount: number;
+  pendingChapterCount: number;
+  chunkCount: number;
+  indexedCharacterCount: number;
+  lastIndexedAt: string | null;
+  embeddingMode: string;
+  embeddingModel: string;
+};
+
 @Injectable()
 export class AuthorRagService {
   private readonly logger = new Logger(AuthorRagService.name);
@@ -33,6 +46,34 @@ export class AuthorRagService {
     }
   }
 
+  async indexNovel(input: { novelId: string; maxChapterOrder?: number }) {
+    if (!this.isEnabled()) {
+      throw new Error('RAG service is disabled. Set RAG_ENABLED=true before indexing.');
+    }
+    return this.request('/v1/index/novel', input, { timeoutMs: 5 * 60_000 });
+  }
+
+  async getNovelIndexStatus(novelId: string): Promise<RagIndexStatus> {
+    if (!this.isEnabled()) {
+      return {
+        enabled: false,
+        novelId,
+        chapterCount: 0,
+        indexedChapterCount: 0,
+        pendingChapterCount: 0,
+        chunkCount: 0,
+        indexedCharacterCount: 0,
+        lastIndexedAt: null,
+        embeddingMode: 'disabled',
+        embeddingModel: 'disabled',
+      };
+    }
+    const payload = await this.request(`/v1/index/novel/${encodeURIComponent(novelId)}`, undefined, {
+      method: 'GET',
+    });
+    return { enabled: true, ...payload } as RagIndexStatus;
+  }
+
   async retrieve(input: RetrieveInput): Promise<Array<Record<string, unknown>>> {
     if (!this.isEnabled()) return [];
     const payload = await this.request('/v1/retrieve', input);
@@ -40,22 +81,26 @@ export class AuthorRagService {
     return Array.isArray(items) ? (items as Array<Record<string, unknown>>) : [];
   }
 
-  private async request(path: string, body: unknown): Promise<Record<string, unknown>> {
+  private async request(
+    path: string,
+    body?: unknown,
+    options: { method?: 'GET' | 'POST'; timeoutMs?: number } = {},
+  ): Promise<Record<string, unknown>> {
     const baseUrl =
       this.configService.get<string>('RAG_SERVICE_URL')?.trim().replace(/\/+$/, '') ||
       'http://127.0.0.1:8000';
     const token = this.configService.get<string>('INTERNAL_RAG_TOKEN')?.trim();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
+    const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 15_000);
 
     try {
       const response = await fetch(`${baseUrl}${path}`, {
-        method: 'POST',
+        method: options.method ?? 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(body),
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         signal: controller.signal,
       });
       if (!response.ok) {

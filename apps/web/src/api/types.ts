@@ -301,6 +301,29 @@ export interface AuthorAiAssistanceResult {
   action: AuthorAiAction;
   content: string;
   model: string;
+  sources?: Array<{
+    chapterId: string;
+    chapterOrder: number;
+    chunkIndex: number;
+    score: number;
+    vectorScore?: number;
+    lexicalScore?: number;
+    title?: string;
+    excerpt?: string;
+  }>;
+}
+
+export interface AuthorRagIndexStatus {
+  enabled: boolean;
+  novelId: string;
+  chapterCount: number;
+  indexedChapterCount: number;
+  pendingChapterCount: number;
+  chunkCount: number;
+  indexedCharacterCount: number;
+  lastIndexedAt: string | null;
+  embeddingMode: string;
+  embeddingModel: string;
 }
 
 export interface AuthorCollectionTaskPreview {

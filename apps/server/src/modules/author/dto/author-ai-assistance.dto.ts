@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
 export const AUTHOR_AI_ACTIONS = [
   'character',
@@ -31,4 +31,15 @@ export class AuthorAiAssistanceDto {
   @IsString()
   @MaxLength(200)
   query?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(64)
+  novelId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  beforeChapterOrder?: number;
 }

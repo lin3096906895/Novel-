@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Clock3, Flame, RefreshCcw, Search, Sparkles, Trash2, X } from 'lucide-react';
+import {
+  BookMarked,
+  Clock3,
+  Compass,
+  Flame,
+  RefreshCcw,
+  Search,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { api, type NovelListQuery } from '../api/client';
 import type {
   Category,
@@ -338,181 +348,235 @@ export function CatalogPage() {
 
   return (
     <>
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">原创小说平台 MVP</p>
-          <h1>发现下一本想追的故事</h1>
-        </div>
-        <div
-          className="search-area"
-          onFocus={() => setIsSearchOpen(true)}
-          onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) {
-              setIsSearchOpen(false);
-            }
-          }}
-        >
-          <form className="search-box" onSubmit={submitSearch}>
-            <Search size={18} aria-hidden />
-            <input
-              aria-label="搜索书名、作者或关键词"
-              aria-autocomplete="list"
-              value={keywordInput}
-              onChange={(event) => setKeywordInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  setIsSearchOpen(false);
-                }
-              }}
-              placeholder="搜索书名、作者或关键词"
-              aria-expanded={isSearchOpen}
-              aria-controls="search-discovery-popover"
-              role="combobox"
-            />
-          </form>
+      <section className="catalog-hero">
+        <div className="catalog-hero-copy">
+          <p className="catalog-kicker">
+            <Compass size={16} aria-hidden />
+            阅界书城 · 故事从这里展开
+          </p>
+          <h1>
+            在万千世界里，
+            <span>遇见下一次心动</span>
+          </h1>
+          <p className="catalog-hero-description">
+            从热血成长到细腻情感，为每一种阅读偏好找到值得追更的故事。
+          </p>
 
-          {isSearchOpen && (
-            <div
-              className="search-discovery-popover"
-              id="search-discovery-popover"
-              role="dialog"
-              aria-label="搜索建议"
-            >
-              {keywordInput.trim() ? (
-                <SearchSuggestionList
-                  isLoading={isSuggestionLoading}
-                  suggestions={searchSuggestions}
-                  onSelect={selectSuggestion}
-                />
-              ) : (
-                <>
-                  {searchHistories.length > 0 && (
-                    <SearchHistoryList
-                      histories={searchHistories}
-                      onClear={() => void clearHistories()}
-                      onRemove={(historyId) => void removeHistory(historyId)}
-                      onSelect={performSearch}
-                    />
-                  )}
-                  <HotSearchList items={hotSearches} onSelect={performSearch} />
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </header>
-
-      <FilterGroup label="频道">
-        {channels.map((channel) => (
-          <button
-            className={
-              query.channel === channel.id || (!query.channel && channel.id === '') ? 'active' : ''
-            }
-            key={channel.id || 'all'}
-            type="button"
-            aria-pressed={
-              query.channel === channel.id || (!query.channel && channel.id === '')
-            }
-            onClick={() => updateQuery({ channel: channel.id || undefined, categoryId: undefined })}
-          >
-            {channel.name}
-          </button>
-        ))}
-      </FilterGroup>
-
-      <FilterGroup label="分类">
-        <button
-          className={!query.categoryId ? 'active' : ''}
-          type="button"
-          aria-pressed={!query.categoryId}
-          onClick={() => updateQuery({ categoryId: undefined })}
-        >
-          全部
-        </button>
-        {categories.map((category) => (
-          <button
-            className={query.categoryId === category.id ? 'active' : ''}
-            key={category.id}
-            type="button"
-            aria-pressed={query.categoryId === category.id}
-            onClick={() => updateQuery({ categoryId: category.id })}
-          >
-            {category.name}
-          </button>
-        ))}
-      </FilterGroup>
-
-      <FilterGroup label="标签">
-        <button
-          className={!query.tagId ? 'active' : ''}
-          type="button"
-          aria-pressed={!query.tagId}
-          onClick={() => updateQuery({ tagId: undefined })}
-        >
-          全部
-        </button>
-        {tags.map((tag) => (
-          <button
-            className={query.tagId === tag.id ? 'active' : ''}
-            key={tag.id}
-            type="button"
-            aria-pressed={query.tagId === tag.id}
-            onClick={() => updateQuery({ tagId: tag.id })}
-          >
-            {tag.name}
-          </button>
-        ))}
-      </FilterGroup>
-
-      <section className="filter-toolbar" aria-label="状态和排序">
-        <FilterGroup label="状态" compact>
-          {statuses.map((status) => (
-            <button
-              className={
-                query.status === status.id || (!query.status && status.id === '') ? 'active' : ''
+          <div
+            className="search-area catalog-search-area"
+            onFocus={() => setIsSearchOpen(true)}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) {
+                setIsSearchOpen(false);
               }
-              key={status.id || 'all'}
-              type="button"
-              aria-pressed={
-                query.status === status.id || (!query.status && status.id === '')
-              }
-              onClick={() => updateQuery({ status: status.id || undefined })}
-            >
-              {status.name}
-            </button>
-          ))}
-        </FilterGroup>
+            }}
+          >
+            <form className="search-box catalog-search-box" onSubmit={submitSearch}>
+              <Search size={19} aria-hidden />
+              <input
+                aria-label="搜索书名、作者或关键词"
+                aria-autocomplete="list"
+                value={keywordInput}
+                onChange={(event) => setKeywordInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    setIsSearchOpen(false);
+                  }
+                }}
+                placeholder="搜索书名、作者、角色或关键词"
+                aria-expanded={isSearchOpen}
+                aria-controls="search-discovery-popover"
+                role="combobox"
+              />
+              <button type="submit">搜索</button>
+            </form>
 
-        <FilterGroup label="排序" compact>
-          {sorts.map((sort) => (
-            <button
-              className={query.sort === sort.id ? 'active' : ''}
-              key={sort.id}
-              type="button"
-              aria-pressed={query.sort === sort.id}
-              onClick={() => updateQuery({ sort: sort.id === 'latest' ? undefined : sort.id })}
-            >
-              {sort.name}
-            </button>
-          ))}
-        </FilterGroup>
+            {isSearchOpen && (
+              <div
+                className="search-discovery-popover"
+                id="search-discovery-popover"
+                role="dialog"
+                aria-label="搜索建议"
+              >
+                {keywordInput.trim() ? (
+                  <SearchSuggestionList
+                    isLoading={isSuggestionLoading}
+                    suggestions={searchSuggestions}
+                    onSelect={selectSuggestion}
+                  />
+                ) : (
+                  <>
+                    {searchHistories.length > 0 && (
+                      <SearchHistoryList
+                        histories={searchHistories}
+                        onClear={() => void clearHistories()}
+                        onRemove={(historyId) => void removeHistory(historyId)}
+                        onSelect={performSearch}
+                      />
+                    )}
+                    <HotSearchList items={hotSearches} onSelect={performSearch} />
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="catalog-hero-features" aria-label="平台特色">
+            <span>
+              <BookMarked size={15} aria-hidden /> 沉浸阅读
+            </span>
+            <span>
+              <Sparkles size={15} aria-hidden /> 智能发现
+            </span>
+            <span>
+              <Flame size={15} aria-hidden /> 实时追更
+            </span>
+          </div>
+        </div>
+
+        <div className="catalog-hero-visual" aria-hidden>
+          <div className="catalog-orbit orbit-one" />
+          <div className="catalog-orbit orbit-two" />
+          <div className="catalog-book book-back">
+            <span>阅</span>
+          </div>
+          <div className="catalog-book book-front">
+            <small>READING UNIVERSE</small>
+            <strong>界</strong>
+            <i>每一次翻页，都是一扇新世界的门。</i>
+          </div>
+        </div>
       </section>
 
-      {hasFilters && (
-        <div className="search-summary">
-          <span>已筛选出 {total} 本作品</span>
-          <button type="button" onClick={resetFilters}>
-            <X size={16} aria-hidden />
-            清空筛选
+      <section className="catalog-filter-panel">
+        <header className="catalog-filter-heading">
+          <div>
+            <span>DISCOVER</span>
+            <h2>按你的偏好筛选</h2>
+          </div>
+          <p>频道、题材与更新状态可以自由组合</p>
+        </header>
+
+        <FilterGroup label="频道">
+          {channels.map((channel) => (
+            <button
+              className={
+                query.channel === channel.id || (!query.channel && channel.id === '')
+                  ? 'active'
+                  : ''
+              }
+              key={channel.id || 'all'}
+              type="button"
+              aria-pressed={
+                query.channel === channel.id || (!query.channel && channel.id === '')
+              }
+              onClick={() =>
+                updateQuery({ channel: channel.id || undefined, categoryId: undefined })
+              }
+            >
+              {channel.name}
+            </button>
+          ))}
+        </FilterGroup>
+
+        <FilterGroup label="分类">
+          <button
+            className={!query.categoryId ? 'active' : ''}
+            type="button"
+            aria-pressed={!query.categoryId}
+            onClick={() => updateQuery({ categoryId: undefined })}
+          >
+            全部
           </button>
-        </div>
-      )}
+          {categories.map((category) => (
+            <button
+              className={query.categoryId === category.id ? 'active' : ''}
+              key={category.id}
+              type="button"
+              aria-pressed={query.categoryId === category.id}
+              onClick={() => updateQuery({ categoryId: category.id })}
+            >
+              {category.name}
+            </button>
+          ))}
+        </FilterGroup>
+
+        <FilterGroup label="标签">
+          <button
+            className={!query.tagId ? 'active' : ''}
+            type="button"
+            aria-pressed={!query.tagId}
+            onClick={() => updateQuery({ tagId: undefined })}
+          >
+            全部
+          </button>
+          {tags.map((tag) => (
+            <button
+              className={query.tagId === tag.id ? 'active' : ''}
+              key={tag.id}
+              type="button"
+              aria-pressed={query.tagId === tag.id}
+              onClick={() => updateQuery({ tagId: tag.id })}
+            >
+              {tag.name}
+            </button>
+          ))}
+        </FilterGroup>
+
+        <section className="filter-toolbar" aria-label="状态和排序">
+          <FilterGroup label="状态" compact>
+            {statuses.map((status) => (
+              <button
+                className={
+                  query.status === status.id || (!query.status && status.id === '') ? 'active' : ''
+                }
+                key={status.id || 'all'}
+                type="button"
+                aria-pressed={
+                  query.status === status.id || (!query.status && status.id === '')
+                }
+                onClick={() => updateQuery({ status: status.id || undefined })}
+              >
+                {status.name}
+              </button>
+            ))}
+          </FilterGroup>
+
+          <FilterGroup label="排序" compact>
+            {sorts.map((sort) => (
+              <button
+                className={query.sort === sort.id ? 'active' : ''}
+                key={sort.id}
+                type="button"
+                aria-pressed={query.sort === sort.id}
+                onClick={() => updateQuery({ sort: sort.id === 'latest' ? undefined : sort.id })}
+              >
+                {sort.name}
+              </button>
+            ))}
+          </FilterGroup>
+        </section>
+
+        {hasFilters && (
+          <div className="search-summary">
+            <span>当前条件下共找到 {total} 本作品</span>
+            <button type="button" onClick={resetFilters}>
+              <X size={16} aria-hidden />
+              清空筛选
+            </button>
+          </div>
+        )}
+      </section>
 
       <section className="layout-grid">
         <div className="main-column">
-          <section className="panel">
+          <section className="panel catalog-featured-panel">
             <div className="section-title">
-              <h2>{featuredTitle}</h2>
+              <div className="section-heading-copy">
+                <span>FEATURED STORIES</span>
+                <h2>{featuredTitle}</h2>
+                <p>从编辑精选与阅读偏好中，为你挑出值得打开的故事。</p>
+              </div>
               <button
                 type="button"
                 onClick={() =>
@@ -528,16 +592,19 @@ export function CatalogPage() {
             {error && <StateLine text={`无法连接数据服务：${error}`} />}
             {!isLoading && !error && featured.length === 0 && <StateLine text="暂无作品" />}
 
-            <div className="novel-grid">
+            <div className="novel-grid catalog-featured-grid">
               {featured.map((item) => (
                 <NovelCard key={item.novel.id} novel={item.novel} reason={item.reason} />
               ))}
             </div>
           </section>
 
-          <section className="panel">
+          <section className="panel catalog-library-panel">
             <div className="section-title">
-              <h2>书库</h2>
+              <div className="section-heading-copy">
+                <span>LIBRARY</span>
+                <h2>全部作品</h2>
+              </div>
               <span className="muted">{total} 本</span>
             </div>
             <div className="list-stack">
@@ -556,8 +623,11 @@ export function CatalogPage() {
         </div>
 
         <aside className="side-column">
-          <section className="panel">
-            <h2>热读榜</h2>
+          <section className="panel catalog-ranking-card">
+            <div className="side-card-heading">
+              <span>POPULAR</span>
+              <h2>热读榜</h2>
+            </div>
             <ol className="rank-list">
               {ranking.map((novel, index) => (
                 <li key={novel.id}>
@@ -567,8 +637,11 @@ export function CatalogPage() {
               ))}
             </ol>
           </section>
-          <section className="panel compact">
-            <h2>最近更新</h2>
+          <section className="panel compact catalog-update-card">
+            <div className="side-card-heading">
+              <span>JUST UPDATED</span>
+              <h2>最近更新</h2>
+            </div>
             <p>{novels?.items[0]?.title ?? '暂无更新'}</p>
           </section>
         </aside>
@@ -777,5 +850,9 @@ function StateLine({ text }: { text: string }) {
 }
 
 function authorDisplayName(novel: Novel) {
-  return novel.author.authorProfile?.penName ?? novel.author.nickname;
+  return (
+    novel.sourceAuthor?.trim() ||
+    novel.author.authorProfile?.penName?.trim() ||
+    novel.author.nickname
+  );
 }

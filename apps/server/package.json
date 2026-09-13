@@ -14,7 +14,8 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "tsx prisma/seed.ts",
     "crawler:wikisource": "tsx src/crawler/import-wikisource.cli.ts",
-    "crawler:xsbook": "tsx src/crawler/import-xsbook.cli.ts"
+    "crawler:xsbook": "tsx src/crawler/import-xsbook.cli.ts",
+    "rag:reindex": "nest build && node dist/rag/reindex-novel.cli.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.9",

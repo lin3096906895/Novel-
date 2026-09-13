@@ -3934,27 +3934,46 @@ function LoginScreen({
 }) {
   return (
     <main className="admin-login-page">
-      <section className="admin-login-panel">
-        <div>
-          <Text type="secondary">阅界管理端</Text>
-          <Title level={2}>管理员登录</Title>
-        </div>
-        {error && <Alert type="error" message={error} showIcon />}
-        <Form
-          layout="vertical"
-          initialValues={{ email: 'admin@novel.local', password: 'Admin123456' }}
-          onFinish={onLogin}
-        >
-          <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item label="密码" name="password" rules={[{ required: true }]}>
-            <Input.Password />
-          </Form.Item>
-          <Button block type="primary" htmlType="submit" loading={isLoading}>
-            登录
-          </Button>
-        </Form>
+      <section className="admin-login-stage">
+        <aside className="admin-login-story">
+          <div className="admin-login-brand-mark"><BookOutlined /></div>
+          <Text className="admin-login-kicker">YUEJIE OPERATIONS</Text>
+          <Title level={1}>让每一个故事，<br />被认真守护。</Title>
+          <Text className="admin-login-description">
+            阅界内容与运营控制中心，为作品审核、用户治理和平台安全提供统一工作台。
+          </Text>
+          <div className="admin-login-features">
+            <span><AuditOutlined /> 内容审核</span>
+            <span><BarChartOutlined /> 运营洞察</span>
+            <span><SafetyCertificateOutlined /> 安全治理</span>
+          </div>
+        </aside>
+        <section className="admin-login-panel">
+          <div className="admin-login-heading">
+            <Text type="secondary">管理员身份验证</Text>
+            <Title level={2}>欢迎回来</Title>
+            <Text type="secondary">登录后进入阅界管理工作台</Text>
+          </div>
+          {error && <Alert type="error" message={error} showIcon />}
+          <Form
+            layout="vertical"
+            initialValues={{ email: 'admin@novel.local', password: 'Admin123456' }}
+            onFinish={onLogin}
+          >
+            <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
+              <Input size="large" placeholder="请输入管理员邮箱" />
+            </Form.Item>
+            <Form.Item label="密码" name="password" rules={[{ required: true }]}>
+              <Input.Password size="large" placeholder="请输入密码" />
+            </Form.Item>
+            <Button block size="large" type="primary" htmlType="submit" loading={isLoading}>
+              进入管理台
+            </Button>
+          </Form>
+          <Text className="admin-login-footnote" type="secondary">
+            阅界 · 内容安全与创作生态管理
+          </Text>
+        </section>
       </section>
     </main>
   );

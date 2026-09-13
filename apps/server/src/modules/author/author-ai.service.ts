@@ -20,6 +20,7 @@ import { AuthorRagService } from './author-rag.service';
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 10;
 const PROVIDER_TIMEOUT_MS = 45_000;
+const CONSISTENCY_PROVIDER_TIMEOUT_MS = 120_000;
 
 type DeepSeekResponse = {
   choices?: Array<{
@@ -50,7 +51,8 @@ export class AuthorAiService {
   }
 
   async assistDraft(user: RequestUser, dto: AuthorAiAssistanceDto) {
-    return this.generateAssistance(user, dto);
+    const ragContext = await this.resolveDraftRagContext(user, dto);
+    return this.generateAssistance(user, dto, ragContext);
   }
 
   private async generateAssistance(
@@ -71,7 +73,7 @@ export class AuthorAiService {
       try {
         ragItems = await this.ragService.retrieve({
           novelId: ragContext.novelId,
-          query: dto.query?.trim() || dto.content.trim().slice(0, 500),
+          query: this.buildRetrievalQuery(dto),
           topK: 6,
           maxChapterOrder: ragContext.maxChapterOrder,
         });
@@ -89,7 +91,10 @@ export class AuthorAiService {
       .replace(/\/+$/, '');
     const model = this.configService.get<string>('DEEPSEEK_MODEL')?.trim() || 'deepseek-v4-flash';
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      dto.action === 'consistency' ? CONSISTENCY_PROVIDER_TIMEOUT_MS : PROVIDER_TIMEOUT_MS,
+    );
 
     try {
       const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -166,6 +171,15 @@ export class AuthorAiService {
                 chapterOrder: item.chapterOrder,
                 chunkIndex: item.chunkIndex,
                 score: item.score,
+                vectorScore: item.vectorScore,
+                lexicalScore: item.lexicalScore,
+                title:
+                  item.metadata &&
+                  typeof item.metadata === 'object' &&
+                  typeof (item.metadata as { title?: unknown }).title === 'string'
+                    ? (item.metadata as { title: string }).title
+                    : undefined,
+                excerpt: typeof item.content === 'string' ? item.content.slice(0, 260) : undefined,
               })),
             }
           : {}),
@@ -207,12 +221,57 @@ export class AuthorAiService {
     return chapter;
   }
 
+  private async resolveDraftRagContext(user: RequestUser, dto: AuthorAiAssistanceDto) {
+    if (!dto.novelId) {
+      return undefined;
+    }
+    const novel = await this.prisma.novel.findUnique({
+      where: { id: dto.novelId },
+      select: {
+        authorId: true,
+        chapters: {
+          where: { deletedAt: null },
+          orderBy: { orderIndex: 'desc' },
+          take: 1,
+          select: { orderIndex: true },
+        },
+      },
+    });
+    if (!novel) {
+      throw new NotFoundException('Novel not found.');
+    }
+    if (novel.authorId !== user.id && user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('You can only use AI assistance for your own novels.');
+    }
+    return {
+      novelId: dto.novelId,
+      maxChapterOrder: dto.beforeChapterOrder ?? novel.chapters[0]?.orderIndex ?? 0,
+    };
+  }
+
+  private buildRetrievalQuery(dto: AuthorAiAssistanceDto) {
+    if (dto.query?.trim()) {
+      return dto.query.trim();
+    }
+    const content = dto.content.trim();
+    if (content.length <= 2800) {
+      return `${dto.title.trim()}\n${content}`;
+    }
+    return `${dto.title.trim()}\n${content.slice(0, 1000)}\n${content.slice(-1800)}`;
+  }
+
   private formatRagContext(items: Array<Record<string, unknown>>) {
     const excerpts = items
-      .map((item) => {
+      .map((item, index) => {
         const order = typeof item.chapterOrder === 'number' ? item.chapterOrder : '?';
         const content = typeof item.content === 'string' ? item.content.slice(0, 1200) : '';
-        return content ? `[第${order}章] ${content}` : '';
+        const title =
+          item.metadata &&
+          typeof item.metadata === 'object' &&
+          typeof (item.metadata as { title?: unknown }).title === 'string'
+            ? ` ${(item.metadata as { title: string }).title}`
+            : '';
+        return content ? `[S${index + 1} 第${order}章${title}] ${content}` : '';
       })
       .filter(Boolean)
       .join('\n\n');
@@ -263,7 +322,7 @@ export class AuthorAiService {
       polish:
         'Identify 3 to 6 high-value polish opportunities, then provide short revised prose snippets only for the relevant passages. Do not rewrite the whole chapter.',
       consistency:
-        'Use the headings "发现", "依据", and "建议". List only possible inconsistencies grounded in the text; say "未发现明显问题" when appropriate.',
+        'Act as a long-form fiction continuity editor. Compare the current chapter against the retrieved earlier chapters. Check character names and aliases, identity, relationships, cultivation or ability level, possessions, locations, chronology, knowledge boundaries, world rules, and unresolved setup. Distinguish a definite contradiction from a possible issue or an intentional reveal. For every issue, use the headings "问题", "严重程度", "当前文本", "前文依据", and "修改建议", and cite evidence labels such as [S1]. Never invent an earlier fact. If evidence is insufficient or no conflict is found, say "未发现有前文证据支持的明显冲突".',
     };
 
     return `${shared} ${instructions[action]}`;

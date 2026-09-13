@@ -138,7 +138,7 @@ export function NotificationsPage() {
 
   return (
     <section className="notifications-page">
-      <header className="topbar">
+      <header className="topbar product-page-header notifications-page-header">
         <div>
           <p className="eyebrow">消息中心</p>
           <h1>通知</h1>

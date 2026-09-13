@@ -350,6 +350,30 @@ export class AuthorController {
     };
   }
 
+  @Get('novels/:novelId/rag/status')
+  async getNovelRagStatus(
+    @CurrentUser() user: RequestUser,
+    @Param('novelId') novelId: string,
+  ) {
+    return {
+      code: 0,
+      message: 'ok',
+      data: await this.authorService.getRagIndexStatus(user, novelId),
+    };
+  }
+
+  @Post('novels/:novelId/rag/reindex')
+  async reindexNovelForRag(
+    @CurrentUser() user: RequestUser,
+    @Param('novelId') novelId: string,
+  ) {
+    return {
+      code: 0,
+      message: '作品知识库已重建',
+      data: await this.authorService.reindexNovelForRag(user, novelId),
+    };
+  }
+
   @Post('ai-assistance')
   async assistDraftWithAi(@CurrentUser() user: RequestUser, @Body() dto: AuthorAiAssistanceDto) {
     return {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { BookMarked, MessageCircle, Sparkles, TrendingUp } from 'lucide-react';
 import { api } from '../api/client';
-import type { RankingPeriod, RankingResponse, RankingType } from '../api/types';
+import type { Novel, RankingPeriod, RankingResponse, RankingType } from '../api/types';
 import { NovelCover } from '../components/NovelCover';
 
 const rankingTypes: Array<{
@@ -94,7 +94,7 @@ export function RankingPage() {
 
   return (
     <section className="ranking-page">
-      <header className="topbar">
+      <header className="topbar product-page-header ranking-page-header">
         <div>
           <p className="eyebrow">榜单中心</p>
           <h1>找到正在被阅读的作品</h1>
@@ -183,7 +183,7 @@ export function RankingPage() {
                     <h3>{item.novel.title}</h3>
                     <p>{item.novel.summary}</p>
                     <small>
-                      {item.novel.category.name} · {item.novel.author.nickname} ·{' '}
+                      {item.novel.category.name} · {rankingAuthorName(item.novel)} ·{' '}
                       {item.novel._count?.chapters ?? 0} 章
                     </small>
                   </div>
@@ -223,6 +223,14 @@ function formatScore(type: RankingType, score: number | string) {
   }
 
   return `${Number(score).toLocaleString('zh-CN')} 条`;
+}
+
+function rankingAuthorName(novel: Novel) {
+  return (
+    novel.sourceAuthor?.trim() ||
+    novel.author.authorProfile?.penName?.trim() ||
+    novel.author.nickname
+  );
 }
 
 function parseRankingPeriod(value: string | null): RankingPeriod {

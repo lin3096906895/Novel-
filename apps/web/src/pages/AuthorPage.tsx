@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Circle,
   CircleCheckBig,
+  Database,
   FilePlus2,
   FileText,
   Globe2,
@@ -31,6 +32,7 @@ import {
   RotateCcw,
   Save,
   Send,
+  ShieldCheck,
   Sparkles,
   Trash2,
   X,
@@ -51,6 +53,7 @@ import type {
   AuthorNovel,
   AuthorOnboarding,
   AuthorProfile,
+  AuthorRagIndexStatus,
   Category,
   ChapterVersion,
   DeletedChapter,
@@ -609,6 +612,7 @@ export function AuthorPage() {
     <section className="author-center-shell">
       <AuthorCenterSidebar
         activeView={workspaceView}
+        isCreateNovelOpen={isCreateNovelOpen}
         expanded={expandedNav}
         onToggle={(menu) => setExpandedNav((current) => ({ ...current, [menu]: !current[menu] }))}
         onSelect={(view) => {
@@ -630,7 +634,7 @@ export function AuthorPage() {
         <header className="topbar author-center-heading">
           <div>
             <p className="eyebrow">阅界创作中心</p>
-            <h1>{authorWorkspaceLabels[workspaceView]}</h1>
+            <h1>{isCreateNovelOpen ? '创建作品' : authorWorkspaceLabels[workspaceView]}</h1>
           </div>
           <button
             className="ghost-button"
@@ -878,33 +882,53 @@ export function AuthorPage() {
 
               {!isCreateNovelOpen && selectedNovel && (
                 <>
-                  <nav
-                    className="author-work-tabs"
-                    aria-label="\u4f5c\u54c1\u7ba1\u7406\u5de5\u5177"
-                  >
-                    {(['novel', 'catalog'] as AuthorWorkView[]).map((view) => (
+                  <section className="author-work-hero">
+                    <div className="author-work-hero-main">
+                      <NovelCover novel={selectedNovel} size="large" />
+                      <div className="author-work-hero-copy">
+                        <div className="author-work-hero-kicker">
+                          <span>我的作品</span>
+                          <span className="author-work-status" data-status={selectedNovel.status}>
+                            {statusText(selectedNovel.status)}
+                          </span>
+                        </div>
+                        <h2>{selectedNovel.title}</h2>
+                        <p>{selectedNovel.summary || '还没有填写作品简介，完善档案让读者更快了解你的故事。'}</p>
+                        <div className="author-work-hero-meta">
+                          <span>{selectedNovel.category.name}</span>
+                          <span>{formatDashboardNumber(selectedNovel.wordCount)} 字</span>
+                          <span>{selectedNovel._count.chapters} 章</span>
+                          <span>更新于 {formatAnnouncementTime(selectedNovel.updatedAt)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="author-work-hero-actions">
                       <button
-                        aria-current={workView === view ? 'page' : undefined}
-                        className={workView === view ? 'active' : ''}
-                        key={view}
+                        className="primary-link"
                         type="button"
-                        onClick={() => setWorkView(view)}
+                        onClick={() => navigate(`/write/${selectedNovel.id}/new`)}
                       >
-                        {authorWorkLabels[view]}
+                        <FilePlus2 size={16} aria-hidden />
+                        创建章节
                       </button>
-                    ))}
-                  </nav>
-                  <div className="author-workspace-selection">
-                    <span>{selectedNovel.title}</span>
-                    <button
-                      className="primary-link author-quick-create-chapter"
-                      type="button"
-                      onClick={() => navigate(`/write/${selectedNovel.id}/new`)}
-                    >
-                      <FilePlus2 size={16} aria-hidden />
-                      创建章节
-                    </button>
-                  </div>
+                    </div>
+                    <nav className="author-work-tabs" aria-label="作品管理工具">
+                      {(['novel', 'catalog'] as AuthorWorkView[]).map((view) => (
+                        <button
+                          aria-current={workView === view ? 'page' : undefined}
+                          className={workView === view ? 'active' : ''}
+                          key={view}
+                          type="button"
+                          onClick={() => setWorkView(view)}
+                        >
+                          {authorWorkLabels[view]}
+                          {view === 'catalog' && selectedNovel._count.chapters > 0 && (
+                            <span>{selectedNovel._count.chapters}</span>
+                          )}
+                        </button>
+                      ))}
+                    </nav>
+                  </section>
                 </>
               )}
 
@@ -1075,7 +1099,9 @@ export function AuthorPage() {
 
               {!isCreateNovelOpen && selectedNovel && workView === 'catalog' && (
                 <>
-                  <VolumeManagerPanel
+                  <CatalogOverview novel={selectedNovel} />
+                  <div className="author-catalog-workbench">
+                    <VolumeManagerPanel
                     disabled={isUpdatingVolumes || !token}
                     novel={selectedNovel}
                     onCreate={async (payload) => {
@@ -1150,9 +1176,9 @@ export function AuthorPage() {
                         setIsUpdatingVolumes(false);
                       }
                     }}
-                  />
+                    />
 
-                  <ChapterListPanel
+                    <ChapterListPanel
                     chapters={selectedNovel?.chapters ?? []}
                     volumes={selectedNovel?.volumes ?? []}
                     disabled={isUpdatingChapters || !token}
@@ -1243,7 +1269,8 @@ export function AuthorPage() {
                         setIsUpdatingChapters(false);
                       }
                     }}
-                  />
+                    />
+                  </div>
 
                   <ChapterTrashPanel
                     chapters={deletedChapters}
@@ -1311,12 +1338,14 @@ export function AuthorPage() {
 
 function AuthorCenterSidebar({
   activeView,
+  isCreateNovelOpen,
   expanded,
   onToggle,
   onSelect,
   onCreateNovel,
 }: {
   activeView: AuthorWorkspaceView;
+  isCreateNovelOpen: boolean;
   expanded: { works: boolean; data: boolean };
   onToggle(menu: 'works' | 'data'): void;
   onSelect(view: AuthorWorkspaceView): void;
@@ -1348,13 +1377,17 @@ function AuthorCenterSidebar({
           {expanded.works && (
             <div className="author-nav-children">
               <button
-                className={activeView === 'works' ? 'active' : ''}
+                className={activeView === 'works' && !isCreateNovelOpen ? 'active' : ''}
                 type="button"
                 onClick={() => onSelect('works')}
               >
                 小说作品
               </button>
-              <button type="button" onClick={onCreateNovel}>
+              <button
+                className={isCreateNovelOpen ? 'active' : ''}
+                type="button"
+                onClick={onCreateNovel}
+              >
                 创建作品
               </button>
               <button
@@ -2959,9 +2992,13 @@ function EditNovelPanel({
   }
 
   return (
-    <form className="panel author-form" onSubmit={submit}>
-      <div className="section-title">
-        <h2>编辑作品</h2>
+    <form className="panel author-form author-novel-profile" onSubmit={submit}>
+      <div className="section-title author-panel-heading">
+        <div className="section-heading-copy">
+          <span className="eyebrow">WORK PROFILE</span>
+          <h2>作品档案</h2>
+          <p>完善作品的公开信息，读者会在书城和详情页看到这些内容。</p>
+        </div>
         <PencilLine size={18} aria-hidden />
       </div>
 
@@ -2973,81 +3010,114 @@ function EditNovelPanel({
         <p className="state-line">当前状态为 {statusText(novel.status)}，暂不能编辑。</p>
       )}
 
-      <CoverPicker
-        coverUrl={coverUrl}
-        disabled={disabled || !canEdit}
-        label="更换封面"
-        title={title || '封面'}
-        token={token}
-        onChange={(value) => {
-          setCoverUrl(value);
-          markDirty();
-        }}
-      />
+      <div className="author-novel-form-grid">
+        <aside className="author-novel-cover-card">
+          <CoverPicker
+            coverUrl={coverUrl}
+            disabled={disabled || !canEdit}
+            label="更换封面"
+            title={title || '封面'}
+            token={token}
+            onChange={(value) => {
+              setCoverUrl(value);
+              markDirty();
+            }}
+          />
+          <div className="author-novel-cover-hint">
+            <strong>作品封面</strong>
+            <span>建议使用清晰、符合题材气质的竖版图片。</span>
+          </div>
+        </aside>
 
-      <label>
-        书名
-        <input
-          required
-          disabled={!canEdit}
-          minLength={2}
-          maxLength={80}
-          value={title}
-          onChange={(event) => {
-            setTitle(event.target.value);
-            markDirty();
-          }}
-        />
-      </label>
-      <label>
-        分类
-        <select
-          required
-          disabled={!canEdit}
-          value={categoryId}
-          onChange={(event) => {
-            setCategoryId(event.target.value);
-            markDirty();
-          }}
-        >
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        标签
-        <input
-          disabled={!canEdit}
-          placeholder="例如：都市 成长"
-          value={tags}
-          onChange={(event) => {
-            setTags(event.target.value);
-            markDirty();
-          }}
-        />
-      </label>
-      <label>
-        简介
-        <textarea
-          disabled={!canEdit}
-          maxLength={1000}
-          value={summary}
-          onChange={(event) => {
-            setSummary(event.target.value);
-            markDirty();
-          }}
-        />
-      </label>
+        <div className="author-form-sections">
+          <section className="author-form-section">
+            <div className="author-form-section-heading">
+              <div>
+                <span className="eyebrow">IDENTITY</span>
+                <h3>基础信息</h3>
+              </div>
+              <span>必填</span>
+            </div>
+            <div className="author-form-field-grid">
+              <label>
+                书名
+                <input
+                  required
+                  disabled={!canEdit}
+                  minLength={2}
+                  maxLength={80}
+                  value={title}
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                    markDirty();
+                  }}
+                />
+              </label>
+              <label>
+                分类
+                <select
+                  required
+                  disabled={!canEdit}
+                  value={categoryId}
+                  onChange={(event) => {
+                    setCategoryId(event.target.value);
+                    markDirty();
+                  }}
+                >
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section className="author-form-section">
+            <div className="author-form-section-heading">
+              <div>
+                <span className="eyebrow">DISCOVERY</span>
+                <h3>展示信息</h3>
+              </div>
+              <span>帮助读者找到它</span>
+            </div>
+            <label>
+              标签
+              <input
+                disabled={!canEdit}
+                placeholder="例如：都市 成长 热血"
+                value={tags}
+                onChange={(event) => {
+                  setTags(event.target.value);
+                  markDirty();
+                }}
+              />
+            </label>
+            <label>
+              作品简介
+              <textarea
+                disabled={!canEdit}
+                maxLength={1000}
+                value={summary}
+                placeholder="用几句话介绍故事的核心冲突与阅读期待..."
+                onChange={(event) => {
+                  setSummary(event.target.value);
+                  markDirty();
+                }}
+              />
+              <small className="field-hint">{summary.length}/1000 字</small>
+            </label>
+          </section>
+        </div>
+      </div>
       {localError && (
         <p className="auth-error" role="alert">
           {localError}
         </p>
       )}
       {canEdit && <AutoSaveNote state={autoSaveState} />}
-      <div className="author-form-actions">
+      <div className="author-form-actions author-form-sticky-actions">
         <button
           className="ghost-button"
           disabled={disabled || !categoryId || !canEdit}
@@ -3067,7 +3137,8 @@ function EditNovelPanel({
         </button>
       </div>
       {novel && ['DRAFT', 'REJECTED'].includes(novel.status) && (
-        <div className="novel-lifecycle-actions">
+        <details className="novel-lifecycle-actions author-danger-zone">
+          <summary>作品管理与危险操作</summary>
           <button
             className="danger-button"
             disabled={disabled}
@@ -3077,7 +3148,7 @@ function EditNovelPanel({
             <Trash2 size={16} aria-hidden />
             {pendingDelete ? '确认删除作品' : '删除作品'}
           </button>
-        </div>
+        </details>
       )}
       {novel?.status === 'SERIALIZING' && (
         <div className="novel-lifecycle-actions">
@@ -3367,6 +3438,50 @@ function AnnouncementManagerPanel({
   );
 }
 
+function CatalogOverview({ novel }: { novel: AuthorNovel }) {
+  const chapters = novel.chapters ?? [];
+  const publishedCount = chapters.filter((chapter) => chapter.status === 'PUBLISHED').length;
+  const pendingCount = chapters.filter((chapter) =>
+    ['DRAFT', 'REVIEWING', 'SCHEDULED', 'REJECTED'].includes(chapter.status),
+  ).length;
+  const wordCount = chapters.reduce((total, chapter) => total + chapter.wordCount, 0);
+
+  return (
+    <section className="author-catalog-overview" aria-label="目录概览">
+      <div className="author-catalog-overview-heading">
+        <div>
+          <span className="eyebrow">CHAPTER DESK</span>
+          <h2>目录工作台</h2>
+          <p>管理分卷、调整章节顺序，并快速定位需要继续创作的部分。</p>
+        </div>
+        <BarChart3 size={20} aria-hidden />
+      </div>
+      <div className="author-catalog-stats">
+        <div>
+          <span>总章节</span>
+          <strong>{chapters.length}</strong>
+          <small>已创建章节</small>
+        </div>
+        <div>
+          <span>当前字数</span>
+          <strong>{formatDashboardNumber(wordCount)}</strong>
+          <small>正文累计</small>
+        </div>
+        <div>
+          <span>已发布</span>
+          <strong>{publishedCount}</strong>
+          <small>读者可见</small>
+        </div>
+        <div>
+          <span>创作中</span>
+          <strong>{pendingCount}</strong>
+          <small>草稿 / 审核 / 定时</small>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function VolumeManagerPanel({
   novel,
   disabled,
@@ -3386,6 +3501,7 @@ function VolumeManagerPanel({
   const [description, setDescription] = useState('');
   const [localError, setLocalError] = useState<string>();
   const volumes = novel?.volumes ?? [];
+  const unassignedCount = novel?.chapters?.filter((chapter) => !chapter.volumeId).length ?? 0;
 
   async function createVolume(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -3421,10 +3537,11 @@ function VolumeManagerPanel({
 
   return (
     <section className="panel volume-manager-panel">
-      <div className="section-title">
-        <div>
-          <h2>作品分卷</h2>
-          <span className="muted">{volumes.length} 卷</span>
+      <div className="section-title author-panel-heading">
+        <div className="section-heading-copy">
+          <span className="eyebrow">VOLUME TREE</span>
+          <h2>分卷导航</h2>
+          <p>{volumes.length} 个分卷，按章节结构逐级整理。</p>
         </div>
         <Layers3 size={18} aria-hidden />
       </div>
@@ -3464,7 +3581,15 @@ function VolumeManagerPanel({
             </p>
           )}
           <div className="volume-list">
-            {volumes.length === 0 && <p className="state-line">暂无分卷，章节将显示为未分卷</p>}
+            <div className="volume-unassigned-row">
+              <span className="volume-tree-index">00</span>
+              <div>
+                <strong>未分卷</strong>
+                <small>暂未归入分卷的章节</small>
+              </div>
+              <span>{unassignedCount} 章</span>
+            </div>
+            {volumes.length === 0 && <p className="state-line">创建第一个分卷，让长篇结构更清晰。</p>}
             {volumes.map((volume, index) => (
               <VolumeRow
                 key={volume.id}
@@ -3531,6 +3656,7 @@ function VolumeRow({
 
   return (
     <form className="volume-row" onSubmit={save}>
+      <span className="volume-tree-index">{String(volume.orderIndex).padStart(2, '0')}</span>
       <div className="volume-order-actions">
         <button
           className="icon-button"
@@ -3688,9 +3814,13 @@ function ChapterListPanel({
   }
 
   return (
-    <section className="panel">
-      <div className="section-title">
-        <h2>章节列表</h2>
+    <section className="panel author-chapter-panel">
+      <div className="section-title author-panel-heading">
+        <div className="section-heading-copy">
+          <span className="eyebrow">CHAPTERS</span>
+          <h2>章节列表</h2>
+          <p>点击章节进入编辑，归卷和批量整理都在这里完成。</p>
+        </div>
         <div className="chapter-list-heading-actions">
           <span className="muted">{chapters.length} 章</span>
           {chapters.length > 0 && (
@@ -3730,6 +3860,15 @@ function ChapterListPanel({
       {isManaging && manageableIds.length !== chapters.length && (
         <p className="chapter-management-note">审核中和已发布章节已锁定</p>
       )}
+      {chapters.length > 0 && (
+        <div className={`author-chapter-table-header${isManaging ? ' managing' : ''}`}>
+          {isManaging && <span aria-hidden />}
+          <span>章节</span>
+          <span>状态 / 字数</span>
+          <span>所属分卷</span>
+          {isManaging && <span>排序</span>}
+        </div>
+      )}
       <div className="author-chapter-list">
         {chapters.map((chapter, index) => (
           <article
@@ -3755,21 +3894,30 @@ function ChapterListPanel({
               type="button"
               onClick={() => onSelect(chapter.id)}
             >
-              <strong>
-                {chapter.orderIndex}. {chapter.title}
-              </strong>
-              <small>
-                {statusText(chapter.status)} · {chapter.wordCount} 字
-                {chapter.status === 'SCHEDULED' && chapter.scheduledAt
-                  ? ` · ${formatScheduledAt(chapter.scheduledAt)}`
-                  : ''}
-              </small>
+              <span className="author-chapter-index">
+                {String(chapter.orderIndex).padStart(2, '0')}
+              </span>
+              <span className="author-chapter-title-copy">
+                <strong>{chapter.title}</strong>
+                <small>更新于 {formatAnnouncementTime(chapter.updatedAt)}</small>
+              </span>
               {chapter.status === 'REJECTED' && chapter.latestRejection && (
                 <RejectionNote reason={chapter.latestRejection.reason} />
               )}
             </button>
+            <div className="author-chapter-meta">
+              <span className="author-chapter-status" data-status={chapter.status}>
+                {statusText(chapter.status)}
+              </span>
+              <small>
+                {chapter.wordCount} 字
+                {chapter.status === 'SCHEDULED' && chapter.scheduledAt
+                  ? ` · ${formatScheduledAt(chapter.scheduledAt)}`
+                  : ''}
+              </small>
+            </div>
             <label className="chapter-volume-control">
-              <span>所属分卷</span>
+              <span className="sr-only">所属分卷</span>
               <select
                 aria-label={`${chapter.title} 所属分卷`}
                 disabled={disabled || Boolean(pendingAction)}
@@ -4264,6 +4412,8 @@ function EditChapterPanel({
       </main>
       <AuthorAiAssistant
         chapter={chapter}
+        novelId={chapter?.novelId}
+        beforeChapterOrder={Math.max((chapter?.orderIndex ?? 1) - 1, 0)}
         token={token}
         title={title}
         content={content}
@@ -4279,6 +4429,8 @@ function EditChapterPanel({
 
 function AuthorAiAssistant({
   chapter,
+  novelId,
+  beforeChapterOrder,
   token,
   title,
   content,
@@ -4286,6 +4438,8 @@ function AuthorAiAssistant({
   onAppend,
 }: {
   chapter?: DraftChapter;
+  novelId?: string;
+  beforeChapterOrder?: number;
   token?: string;
   title: string;
   content: string;
@@ -4297,6 +4451,9 @@ function AuthorAiAssistant({
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
   const [query, setQuery] = useState('');
+  const [ragStatus, setRagStatus] = useState<AuthorRagIndexStatus>();
+  const [isRagIndexing, setIsRagIndexing] = useState(false);
+  const [ragError, setRagError] = useState<string>();
 
   const primaryActions: Array<{
     action: AuthorAiAction;
@@ -4304,6 +4461,12 @@ function AuthorAiAssistant({
     description: string;
     icon: ReactNode;
   }> = [
+    {
+      action: 'consistency',
+      label: '一致性审校',
+      description: '对照前文章节检查人物、时间线与设定冲突',
+      icon: <ShieldCheck size={18} aria-hidden />,
+    },
     {
       action: 'character',
       label: '人物设定',
@@ -4327,7 +4490,6 @@ function AuthorAiAssistant({
     { action: 'summary', label: '章节摘要' },
     { action: 'outline', label: '大纲建议' },
     { action: 'polish', label: '润色建议' },
-    { action: 'consistency', label: '设定检查' },
   ];
   const actionLabels: Record<AuthorAiAction, string> = {
     character: '人物设定',
@@ -4337,7 +4499,7 @@ function AuthorAiAssistant({
     summary: '章节摘要',
     outline: '大纲建议',
     polish: '润色建议',
-    consistency: '设定检查',
+    consistency: '一致性审校',
   };
 
   useEffect(() => {
@@ -4346,6 +4508,42 @@ function AuthorAiAssistant({
     setCopied(false);
     setQuery('');
   }, [chapter?.id]);
+
+  useEffect(() => {
+    let active = true;
+    setRagStatus(undefined);
+    setRagError(undefined);
+    if (!token || !novelId) {
+      return () => {
+        active = false;
+      };
+    }
+    void api
+      .getAuthorRagStatus(token, novelId)
+      .then((status) => {
+        if (active) setRagStatus(status);
+      })
+      .catch((err) => {
+        if (active) setRagError(err instanceof Error ? err.message : '作品记忆库状态加载失败');
+      });
+    return () => {
+      active = false;
+    };
+  }, [novelId, token]);
+
+  async function reindexNovel() {
+    if (!token || !novelId || isRagIndexing) return;
+    setIsRagIndexing(true);
+    setRagError(undefined);
+    try {
+      const result = await api.reindexAuthorNovel(token, novelId);
+      setRagStatus(result.status);
+    } catch (err) {
+      setRagError(err instanceof Error ? err.message : '作品记忆库重建失败');
+    } finally {
+      setIsRagIndexing(false);
+    }
+  }
 
   async function run(action: AuthorAiAction) {
     if (!token) {
@@ -4372,6 +4570,8 @@ function AuthorAiAssistant({
             ? content
             : '当前章节尚未开始写作，作者正在进行与小说创作相关的资料查询。',
         query: action === 'research' ? query.trim() : undefined,
+        novelId,
+        beforeChapterOrder,
       };
       setResult(
         chapter
@@ -4408,6 +4608,30 @@ function AuthorAiAssistant({
           <small>读取当前编辑区内容，但不会自动保存或发布。</small>
         </div>
       </div>
+      {novelId && (
+        <div className="author-ai-memory-status">
+          <Database size={18} aria-hidden />
+          <span>
+            <strong>作品记忆库</strong>
+            <small>
+              {ragStatus
+                ? ragStatus.enabled
+                  ? `${ragStatus.indexedChapterCount}/${ragStatus.chapterCount} 章 · ${ragStatus.chunkCount} 个片段`
+                  : 'RAG 尚未启用'
+                : '正在读取索引状态...'}
+            </small>
+          </span>
+          <button
+            type="button"
+            disabled={disabled || isRagIndexing || !ragStatus?.enabled}
+            onClick={() => void reindexNovel()}
+          >
+            <RefreshCcw size={14} aria-hidden />
+            {isRagIndexing ? '重建中' : '重建索引'}
+          </button>
+        </div>
+      )}
+      {ragError && <p className="author-ai-memory-error">{ragError}</p>}
       <div className="author-ai-tool-grid" aria-label="AI 创作工具">
         {primaryActions.map(({ action, label, description, icon }) => (
           <button
@@ -4476,13 +4700,40 @@ function AuthorAiAssistant({
             <span>{result.model}</span>
           </div>
           <pre>{result.content}</pre>
+          {result.sources && result.sources.length > 0 && (
+            <div className="author-ai-sources">
+              <div className="author-ai-sources-heading">
+                <strong>引用前文</strong>
+                <span>{result.sources.length} 条可追溯证据</span>
+              </div>
+              {result.sources.map((source, index) => (
+                <a
+                  key={`${source.chapterId}-${source.chunkIndex}`}
+                  href={`${readerPortalUrl}/chapters/${source.chapterId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>
+                    <strong>
+                      S{index + 1} · 第 {source.chapterOrder} 章
+                      {source.title ? `《${source.title}》` : ''}
+                    </strong>
+                    <small>综合匹配 {(source.score * 100).toFixed(1)}%</small>
+                  </span>
+                  {source.excerpt && <p>{source.excerpt}</p>}
+                </a>
+              ))}
+            </div>
+          )}
           <div className="author-ai-result-actions">
             <button className="ghost-button" type="button" onClick={() => void copyResult()}>
               {copied ? '已复制' : '复制建议'}
             </button>
-            <button className="ghost-button" type="button" onClick={() => onAppend(result.content)}>
-              插入正文末尾
-            </button>
+            {result.action !== 'consistency' && (
+              <button className="ghost-button" type="button" onClick={() => onAppend(result.content)}>
+                插入正文末尾
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -4651,6 +4902,8 @@ function CreateChapterPanel({
         )}
       </main>
       <AuthorAiAssistant
+        novelId={novel?.id}
+        beforeChapterOrder={novel?._count.chapters ?? 0}
         token={token}
         title={title}
         content={content}
@@ -4982,9 +5235,19 @@ function AuthorProfilePanel({
 
 function AuthorState({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <section className="empty-state">
+    <section className="empty-state author-gateway-state">
+      <div className="author-gateway-mark" aria-hidden>
+        <BookOpen size={30} />
+      </div>
+      <p className="eyebrow">AUTHOR STUDIO</p>
       <h1>{title}</h1>
-      {children}
+      <p>在阅界创作中心管理作品、编排章节，并使用 AI 与知识库辅助长篇创作。</p>
+      <div className="author-gateway-features" aria-hidden>
+        <span><PencilLine size={14} />沉浸写作</span>
+        <span><Sparkles size={14} />AI 辅助</span>
+        <span><Database size={14} />作品知识库</span>
+      </div>
+      <div className="author-gateway-actions">{children}</div>
     </section>
   );
 }

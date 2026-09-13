@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   ChapterStatus,
@@ -42,6 +43,30 @@ export class AuthorService {
     private readonly sensitiveWordsService: SensitiveWordsService,
     @Optional() private readonly ragService?: AuthorRagService,
   ) {}
+
+  async getRagIndexStatus(user: RequestUser, novelId: string) {
+    await this.assertNovelAccess(user, novelId);
+    if (!this.ragService) {
+      throw new ServiceUnavailableException('RAG service is not available.');
+    }
+    return this.ragService.getNovelIndexStatus(novelId);
+  }
+
+  async reindexNovelForRag(user: RequestUser, novelId: string) {
+    await this.assertNovelAccess(user, novelId);
+    if (!this.ragService) {
+      throw new ServiceUnavailableException('RAG service is not available.');
+    }
+    const status = await this.ragService.getNovelIndexStatus(novelId);
+    if (!status.enabled) {
+      throw new ServiceUnavailableException('RAG is disabled. Set RAG_ENABLED=true first.');
+    }
+    const result = await this.ragService.indexNovel({ novelId });
+    return {
+      ...result,
+      status: await this.ragService.getNovelIndexStatus(novelId),
+    };
+  }
 
   async createNovel(user: RequestUser, dto: CreateNovelDto) {
     await this.ensureCategoryExists(dto.categoryId);
@@ -1199,6 +1224,20 @@ export class AuthorService {
         data: { orderIndex: index + 1 },
       });
     }
+  }
+
+  private async assertNovelAccess(user: RequestUser, novelId: string) {
+    const novel = await this.prisma.novel.findUnique({
+      where: { id: novelId },
+      select: { id: true, authorId: true },
+    });
+    if (!novel) {
+      throw new NotFoundException('作品不存在');
+    }
+    if (novel.authorId !== user.id && user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('只能管理自己的作品');
+    }
+    return novel;
   }
 
   private validateNovelForAction(dto: CreateNovelDto | UpdateNovelDto) {

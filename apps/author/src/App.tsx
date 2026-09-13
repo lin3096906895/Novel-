@@ -16,8 +16,13 @@ function App() {
     <div className={`author-portal-shell${isWriting ? ' writing-mode' : ''}`}>
       <header className="author-portal-header">
         <a className="author-portal-brand" href={readerPortalUrl}>
-          <BookOpen size={22} aria-hidden />
-          <span>阅界创作中心</span>
+          <span className="author-portal-brand-symbol">
+            <BookOpen size={20} aria-hidden />
+          </span>
+          <span className="author-portal-brand-copy">
+            <strong>阅界创作</strong>
+            <small>AUTHOR STUDIO</small>
+          </span>
         </a>
         <div className="author-portal-actions">
           <a className="ghost-button" href={readerPortalUrl}>

@@ -12,16 +12,28 @@ const author = {
   sessionId: 'session_1',
 };
 
-function createService(authorId = author.id, apiKey = 'test-key') {
+function createService(
+  authorId = author.id,
+  apiKey = 'test-key',
+  ragService?: { retrieve(input: Record<string, unknown>): Promise<Array<Record<string, unknown>>> },
+) {
   return new AuthorAiService(
     {
       chapter: {
-        findUnique: async () => ({ novel: { authorId } }),
+        findUnique: async () => ({
+          novelId: 'novel_1',
+          orderIndex: 12,
+          novel: { authorId },
+        }),
+      },
+      novel: {
+        findUnique: async () => ({ authorId, chapters: [{ orderIndex: 100 }] }),
       },
     } as never,
     {
       get: (name: string) => (name === 'DEEPSEEK_API_KEY' ? apiKey : undefined),
     } as never,
+    ragService as never,
   );
 }
 
@@ -88,6 +100,66 @@ describe('AuthorAiService', () => {
       assert.equal(result.action, 'research');
       assert.match(requestBody, /Author question:/);
       assert.match(requestBody, /do not claim live web access/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('retrieves spoiler-safe prior chapters for an unsaved consistency check', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestBody = '';
+    let retrieveInput: Record<string, unknown> | undefined;
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      requestBody = String(init?.body);
+      return {
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: '发现一处姓名疑似冲突 [S1]' } }] }),
+      };
+    }) as typeof fetch;
+
+    try {
+      const result = await createService(author.id, 'test-key', {
+        retrieve: async (input) => {
+          retrieveInput = input;
+          return [
+            {
+              chapterId: 'chapter_1',
+              chapterOrder: 1,
+              chunkIndex: 0,
+              content: '王耀给自己算了一卦，随后准备参加仙门考核。',
+              metadata: { title: '第一章 若是修仙不努力' },
+              score: 0.82,
+              vectorScore: 0.76,
+              lexicalScore: 0.93,
+            },
+          ];
+        },
+      }).assistDraft(author, {
+        action: 'consistency',
+        title: '第一百零一章 故人重逢',
+        content: '王凌回到山门，众人都认出他就是当年参加仙门考核的少年。',
+        novelId: 'novel_1',
+        beforeChapterOrder: 100,
+      });
+
+      assert.equal(retrieveInput?.novelId, 'novel_1');
+      assert.equal(retrieveInput?.maxChapterOrder, 100);
+      assert.match(String(retrieveInput?.query), /王凌回到山门/);
+      assert.match(requestBody, /前文检索参考/);
+      assert.match(requestBody, /\[S1 第1章 第一章 若是修仙不努力\]/);
+      assert.match(requestBody, /long-form fiction continuity editor/);
+      assert.deepEqual(result.sources, [
+        {
+          chapterId: 'chapter_1',
+          chapterOrder: 1,
+          chunkIndex: 0,
+          score: 0.82,
+          vectorScore: 0.76,
+          lexicalScore: 0.93,
+          title: '第一章 若是修仙不努力',
+          excerpt: '王耀给自己算了一卦，随后准备参加仙门考核。',
+        },
+      ]);
     } finally {
       globalThis.fetch = originalFetch;
     }

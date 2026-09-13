@@ -111,13 +111,19 @@ corepack pnpm build
 
 ## 本地 RAG 开发环境
 
-本地 RAG 基础设施使用 Docker 运行 pgvector 和 Python 服务。默认 `EMBEDDING_MODE=mock` 只用于验证切片、写入和检索链路，不代表真实语义效果；接入实际中文 embedding 服务后，再开始作者端连续性检查。
+本地 RAG 基础设施使用 Docker 运行 pgvector 和 Python 服务。默认 `EMBEDDING_MODE=local_hashing` 使用中文字符 n-gram 特征向量，可在没有外部模型时完成可重复的本地检索基线；它不是神经语义模型。生产环境仍建议配置 `openai_compatible` 中文 embedding 服务。检索阶段会融合向量分数与 `pg_trgm` 词法分数，并保留引用章节、片段和分项分数。
 
 ```powershell
 corepack pnpm db:up
 corepack pnpm --dir apps/server exec prisma migrate deploy
 docker compose up -d rag
 Invoke-WebRequest http://127.0.0.1:8000/health
+```
+
+对指定作品批量建立或重建索引：
+
+```powershell
+corepack pnpm --filter @novel/server rag:reindex -- --novel-id "作品 ID"
 ```
 
 启动 NestJS 前，请在根目录 `.env` 中设置 `RAG_ENABLED=true`、`RAG_SERVICE_URL=http://127.0.0.1:8000`，并让 `INTERNAL_RAG_TOKEN` 与 Compose 中一致。章节保存/提交后会异步建立向量索引；作者 AI 辅助会在启用 RAG 时检索当前章节之前的内容，并在返回中附带来源章节。

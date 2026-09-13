@@ -17,6 +17,7 @@ import type {
   AuthorOnboarding,
   AuthorProfile,
   AuthorNovel,
+  AuthorRagIndexStatus,
   AuthResponse,
   AuthLoginResult,
   AuthSession,
@@ -685,6 +686,8 @@ export const api = {
       title: string;
       content: string;
       query?: string;
+      novelId?: string;
+      beforeChapterOrder?: number;
     },
   ) {
     return request<import('./types').AuthorAiAssistanceResult>(
@@ -772,12 +775,25 @@ export const api = {
       title: string;
       content: string;
       query?: string;
+      novelId?: string;
+      beforeChapterOrder?: number;
     },
   ) {
     return request<import('./types').AuthorAiAssistanceResult>('/author/ai-assistance', {
       method: 'POST',
       token,
       body: JSON.stringify(payload),
+    });
+  },
+
+  getAuthorRagStatus(token: string, novelId: string) {
+    return request<AuthorRagIndexStatus>(`/author/novels/${novelId}/rag/status`, { token });
+  },
+
+  reindexAuthorNovel(token: string, novelId: string) {
+    return request<{ status: AuthorRagIndexStatus }>(`/author/novels/${novelId}/rag/reindex`, {
+      method: 'POST',
+      token,
     });
   },
 
