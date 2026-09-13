@@ -23,5 +23,6 @@ import { AuthorService } from './author.service';
     AuthorCollectionService,
     AuthorRagService,
   ],
+  exports: [AuthorRagService],
 })
 export class AuthorModule {}

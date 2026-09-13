@@ -17,6 +17,7 @@ export type AuthorAiAction =
   | 'outline'
   | 'polish'
   | 'consistency';
+export type ReaderAiAction = 'ask' | 'summary' | 'recall' | 'explain';
 export type AuthorApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface User {
@@ -310,6 +311,24 @@ export interface AuthorAiAssistanceResult {
     lexicalScore?: number;
     title?: string;
     excerpt?: string;
+  }>;
+}
+
+export interface ReaderAiAssistanceResult {
+  action: ReaderAiAction;
+  answer: string;
+  model: string;
+  currentChapter: {
+    id: string;
+    orderIndex: number;
+    title: string;
+  };
+  sources: Array<{
+    chapterId: string;
+    chapterOrder: number;
+    title?: string;
+    excerpt?: string;
+    score?: number;
   }>;
 }
 

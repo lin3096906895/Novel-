@@ -18,6 +18,7 @@ import { PrismaModule } from './modules/prisma/prisma.module';
 import { PublicationModule } from './modules/publication/publication.module';
 import { RankingsModule } from './modules/rankings/rankings.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
+import { ReaderAiModule } from './modules/reader-ai/reader-ai.module';
 import { SearchModule } from './modules/search/search.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 
@@ -42,6 +43,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     LibraryModule,
     CommentsModule,
     RecommendationsModule,
+    ReaderAiModule,
     RankingsModule,
     SearchModule,
     UploadsModule,

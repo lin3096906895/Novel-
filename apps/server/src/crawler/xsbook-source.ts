@@ -149,6 +149,18 @@ function attr(attrs: string, name: string): string {
   return decodeHtml(m?.[1] ?? '');
 }
 
+/** 提取 meta 标签的 content，兼容 name/property 两种写法 */
+function extractMetaContent(html: string, key: string): string {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = html.match(
+    new RegExp(
+      `<meta\\b[^>]*(?:name|property)=["']${escapedKey}["'][^>]*content=["']([^"']*)["'][^>]*>`,
+      'i',
+    ),
+  );
+  return decodeHtml(match?.[1] ?? '');
+}
+
 /** 提取所有 <a> 标签的 href + text + title */
 function extractAnchors(html: string): { href: string; text: string; title: string }[] {
   return [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)]
@@ -362,7 +374,12 @@ export class XsbookClient {
     const title = extractByTag(html, 'h1') || extractByTag(html, 'title');
     const authorEl = html.match(/<a\b[^>]*href=["']\/author[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
     const author = authorEl ? stripHtml(authorEl[1]) : '';
-    const summary = extractByClass(html, 'intro') || extractByClass(html, 'description');
+    const summary =
+      extractById(html, 'intro') ||
+      extractByClass(html, 'intro') ||
+      extractByClass(html, 'description') ||
+      extractMetaContent(html, 'og:description') ||
+      extractMetaContent(html, 'description');
     const coverUrl = extractCoverUrl(html, fullUrl);
 
     // 章节列表：第二个 dt 后才是完整正文目录，第一个区域通常只是“最新章节”。

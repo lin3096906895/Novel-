@@ -63,6 +63,8 @@ import type {
   ReadingAnnotation,
   ReadingAnnotationWithContext,
   ReadingPreference,
+  ReaderAiAssistanceResult,
+  ReaderAiAction,
   RecommendSlot,
   RankingResponse,
   RankingPeriod,
@@ -780,6 +782,18 @@ export const api = {
     },
   ) {
     return request<import('./types').AuthorAiAssistanceResult>('/author/ai-assistance', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(payload),
+    });
+  },
+
+  readerAiAsk(
+    token: string,
+    novelId: string,
+    payload: { action: ReaderAiAction; chapterId: string; question?: string; spoilerMode?: 'safe' },
+  ) {
+    return request<ReaderAiAssistanceResult>(`/novels/${novelId}/reader-ai/ask`, {
       method: 'POST',
       token,
       body: JSON.stringify(payload),

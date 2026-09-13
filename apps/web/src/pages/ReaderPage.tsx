@@ -24,6 +24,7 @@ import {
   Save,
   Search,
   Send,
+  Sparkles,
   SlidersHorizontal,
   Sun,
   Trash2,
@@ -43,6 +44,8 @@ import type {
   ReadingAnnotation,
   NovelReadStatus,
   ReadingPreference,
+  ReaderAiAssistanceResult,
+  ReaderAiAction,
   ReadingTheme,
 } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
@@ -90,6 +93,12 @@ const paragraphReportOptions: Array<{ value: ParagraphReportReason; label: strin
 
 type PreferenceStatus = 'idle' | 'saving' | 'saved' | 'local' | 'error';
 type ReaderDrawerView = 'chapters' | 'annotations';
+type ReaderAiMessage = {
+  id: string;
+  role: 'user' | 'assistant' | 'error';
+  text: string;
+  sources?: ReaderAiAssistanceResult['sources'];
+};
 
 interface SelectionDraft {
   paragraphIndex: number;
@@ -109,6 +118,10 @@ export function ReaderPage() {
   const [preferenceStatus, setPreferenceStatus] = useState<PreferenceStatus>('idle');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+  const [isAiOpen, setIsAiOpen] = useState(false);
+  const [aiQuestion, setAiQuestion] = useState('');
+  const [aiMessages, setAiMessages] = useState<ReaderAiMessage[]>([]);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const [catalogQuery, setCatalogQuery] = useState('');
   const [catalogOrder, setCatalogOrder] = useState<'asc' | 'desc'>('asc');
   const [drawerView, setDrawerView] = useState<ReaderDrawerView>('chapters');
@@ -180,6 +193,9 @@ export function ReaderPage() {
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const catalogListRef = useRef<HTMLDivElement>(null);
   const currentChapterRef = useRef<HTMLAnchorElement>(null);
+  const aiButtonRef = useRef<HTMLButtonElement>(null);
+  const aiPanelRef = useRef<HTMLElement>(null);
+  const aiInputRef = useRef<HTMLInputElement>(null);
   const annotationEditorRef = useRef<HTMLFormElement>(null);
   const paragraphCommentsPanelRef = useRef<HTMLElement>(null);
   const paragraphCommentInputRef = useRef<HTMLTextAreaElement>(null);
@@ -300,7 +316,58 @@ export function ReaderPage() {
   useEffect(() => {
     setIsCatalogOpen(false);
     setCatalogQuery('');
+    setIsAiOpen(false);
+    setAiQuestion('');
+    setAiMessages([]);
   }, [id]);
+
+  useEffect(() => {
+    if (!isAiOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusFrame = window.requestAnimationFrame(() => aiInputRef.current?.focus());
+
+    function handleAiKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeAi();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !aiPanelRef.current) {
+        return;
+      }
+
+      const focusable = Array.from(
+        aiPanelRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), a[href]',
+        ),
+      );
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) {
+        return;
+      }
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener('keydown', handleAiKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleAiKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isAiOpen]);
 
   useEffect(() => {
     if (!isCatalogOpen) {
@@ -888,6 +955,90 @@ export function ReaderPage() {
     setIsCatalogOpen(false);
     if (restoreFocus) {
       window.requestAnimationFrame(() => catalogButtonRef.current?.focus());
+    }
+  }
+
+  function toggleAi() {
+    if (isAiOpen) {
+      closeAi();
+      return;
+    }
+
+    setIsCatalogOpen(false);
+    setIsSettingsOpen(false);
+    closeParagraphComments();
+    setMessage(undefined);
+    setIsAiOpen(true);
+  }
+
+  function closeAi(restoreFocus = true) {
+    setIsAiOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => aiButtonRef.current?.focus());
+    }
+  }
+
+  async function askReaderAi(action: ReaderAiAction, question = aiQuestion) {
+    if (!chapter) {
+      return;
+    }
+    if (!token) {
+      setMessage('登录后即可使用阅界 AI 助手');
+      setIsAiOpen(true);
+      return;
+    }
+
+    const trimmedQuestion = question.trim();
+    const effectiveQuestion =
+      action === 'explain' && !trimmedQuestion ? '请解释本章关键设定' : trimmedQuestion;
+    if ((action === 'ask' || action === 'explain') && !effectiveQuestion) {
+      aiInputRef.current?.focus();
+      return;
+    }
+
+    const quickLabels: Record<ReaderAiAction, string> = {
+      ask: trimmedQuestion,
+      summary: '请总结本章',
+      recall: '请回顾前文',
+      explain: effectiveQuestion,
+    };
+    const userMessage: ReaderAiMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      text: quickLabels[action],
+    };
+    setAiMessages((current) => [...current, userMessage]);
+    setAiQuestion('');
+    setIsAiLoading(true);
+
+    try {
+      const result = await api.readerAiAsk(token, chapter.novel.id, {
+        action,
+        chapterId: chapter.id,
+        ...(effectiveQuestion ? { question: effectiveQuestion } : {}),
+        spoilerMode: 'safe',
+      });
+      setAiMessages((current) => [
+        ...current,
+        {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          text: result.answer,
+          sources: result.sources,
+        },
+      ]);
+    } catch (err) {
+      setAiMessages((current) => [
+        ...current,
+        {
+          id: `error-${Date.now()}`,
+          role: 'error',
+          text: err instanceof Error ? err.message : 'AI 暂时无法回答，请稍后再试。',
+        },
+      ]);
+    } finally {
+      setIsAiLoading(false);
+      window.requestAnimationFrame(() => aiInputRef.current?.focus());
     }
   }
 
@@ -1623,6 +1774,10 @@ export function ReaderPage() {
             <List size={17} aria-hidden />
             目录
           </button>
+          <button type="button" onClick={toggleAi} aria-expanded={isAiOpen}>
+            <Sparkles size={17} aria-hidden />
+            AI 助手
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -1667,6 +1822,17 @@ export function ReaderPage() {
         >
           <List size={21} aria-hidden />
           <span>目录</span>
+        </button>
+        <button
+          ref={aiButtonRef}
+          className={isAiOpen ? 'active' : ''}
+          type="button"
+          onClick={toggleAi}
+          aria-expanded={isAiOpen}
+          aria-controls="reader-ai-assistant"
+        >
+          <Sparkles size={21} aria-hidden />
+          <span>AI 助手</span>
         </button>
         <Link to={`/novels/${chapter.novel.id}`} onClick={() => saveBeforeNavigation()}>
           <BookOpen size={21} aria-hidden />
@@ -1896,6 +2062,142 @@ export function ReaderPage() {
                 </div>
               </>
             )}
+          </aside>
+        </>
+      )}
+
+      {isAiOpen && (
+        <>
+          <button
+            className="reader-ai-backdrop"
+            type="button"
+            onClick={() => closeAi()}
+            aria-label="关闭阅界 AI 助手"
+            tabIndex={-1}
+          />
+          <aside
+            ref={aiPanelRef}
+            id="reader-ai-assistant"
+            className="reader-ai-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reader-ai-title"
+          >
+            <header className="reader-ai-header">
+              <div>
+                <span className="reader-ai-kicker">
+                  <Sparkles size={14} aria-hidden />
+                  阅界 AI
+                </span>
+                <h2 id="reader-ai-title">读到哪里，问到哪里</h2>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => closeAi()}
+                aria-label="关闭阅界 AI 助手"
+                title="关闭"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </header>
+
+            <div className="reader-ai-context">
+              <BookOpenCheck size={16} aria-hidden />
+              <span>
+                当前阅读：第 {chapter.orderIndex} 章 · {chapter.title}
+              </span>
+              <small>无剧透模式</small>
+            </div>
+
+            {aiMessages.length === 0 && (
+              <div className="reader-ai-empty">
+                <div className="reader-ai-orb">
+                  <Sparkles size={22} aria-hidden />
+                </div>
+                <strong>你的专属伴读</strong>
+                <p>我会结合当前章节与前文知识库回答，不提前透露后续剧情。</p>
+              </div>
+            )}
+
+            <div className="reader-ai-messages" aria-live="polite">
+              {aiMessages.map((item) => (
+                <div key={item.id} className={`reader-ai-message reader-ai-message-${item.role}`}>
+                  <span className="reader-ai-message-label">
+                    {item.role === 'user' ? '你' : item.role === 'error' ? '提示' : '阅界 AI'}
+                  </span>
+                  <p>{item.text}</p>
+                  {item.sources && item.sources.length > 0 && (
+                    <div className="reader-ai-sources">
+                      <span>参考章节</span>
+                      {item.sources.slice(0, 4).map((source) => (
+                        <Link
+                          key={`${source.chapterId}-${source.chapterOrder}`}
+                          to={`/chapters/${source.chapterId}`}
+                          onClick={() => {
+                            saveBeforeNavigation();
+                            closeAi(false);
+                          }}
+                        >
+                          <strong>第 {source.chapterOrder} 章</strong>
+                          <small>{source.title ?? '相关片段'}</small>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {isAiLoading && (
+                <div className="reader-ai-message reader-ai-message-assistant reader-ai-loading">
+                  <span className="reader-ai-message-label">阅界 AI</span>
+                  <p>
+                    <i /> <i /> <i /> 正在翻阅前文…
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="reader-ai-quick-actions" aria-label="AI 快捷操作">
+              <button type="button" onClick={() => void askReaderAi('summary')} disabled={isAiLoading}>
+                总结本章
+              </button>
+              <button type="button" onClick={() => void askReaderAi('recall')} disabled={isAiLoading}>
+                回顾前文
+              </button>
+              <button type="button" onClick={() => void askReaderAi('explain')} disabled={isAiLoading}>
+                解释设定
+              </button>
+            </div>
+
+            <form
+              className="reader-ai-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void askReaderAi('ask');
+              }}
+            >
+              <input
+                ref={aiInputRef}
+                value={aiQuestion}
+                onChange={(event) => setAiQuestion(event.target.value)}
+                placeholder={token ? '问问人物、伏笔或世界设定…' : '登录后即可向 AI 提问'}
+                maxLength={1000}
+                disabled={isAiLoading}
+                aria-label="向阅界 AI 提问"
+              />
+              <button
+                className="primary-link"
+                type="submit"
+                disabled={isAiLoading || !aiQuestion.trim()}
+                aria-label="发送问题"
+                title="发送"
+              >
+                <Send size={16} aria-hidden />
+              </button>
+            </form>
+            <small className="reader-ai-footnote">
+              AI 可能会犯错，重要信息请以正文为准 · 每 10 分钟最多 10 次
+            </small>
           </aside>
         </>
       )}

@@ -71,4 +71,31 @@ describe('XsbookClient', () => {
       '第一段。\n第二段。\n仍在第二段。',
     );
   });
+
+  it('extracts the detail-page summary from id intro before falling back', async () => {
+    const detailWithId = `${baseUrl}/1_301/`;
+    const pagesWithId = new Map(pages);
+    pagesWithId.set(
+      detailWithId,
+      '<h1>目标作品</h1><a href="/author/2/">作者乙</a><div id="intro">详情页真实简介</div><div id="list"><a rel="chapter" href="/1_301/30101.html">第一章</a></div>',
+    );
+    pagesWithId.set(
+      `${baseUrl}/1_301/30101.html`,
+      '<div id="chaptercontent">第一章正文内容，长度足够用于测试。</div>',
+    );
+
+    const work = await new XsbookClient({
+      fetchImpl: (input) => {
+        const html = pagesWithId.get(String(input));
+        return Promise.resolve(new Response(html ?? '', { status: html ? 200 : 404 }));
+      },
+      delayMs: 0,
+    }).fetchWork({
+      bookUrl: detailWithId,
+      maxChapters: 1,
+      minContentLength: 5,
+    });
+
+    assert.equal(work.summary, '详情页真实简介');
+  });
 });
