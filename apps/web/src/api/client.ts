@@ -805,7 +805,7 @@ export const api = {
   },
 
   reindexAuthorNovel(token: string, novelId: string) {
-    return request<{ status: AuthorRagIndexStatus }>(`/author/novels/${novelId}/rag/reindex`, {
+    return request<import('./types').AuthorRagReindexResult>(`/author/novels/${novelId}/rag/reindex`, {
       method: 'POST',
       token,
     });

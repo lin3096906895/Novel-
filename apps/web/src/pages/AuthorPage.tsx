@@ -4456,6 +4456,7 @@ function AuthorAiAssistant({
   const [isRagIndexing, setIsRagIndexing] = useState(false);
   const [ragEvaluation, setRagEvaluation] = useState<AuthorRagEvaluationResult>();
   const [isRagEvaluating, setIsRagEvaluating] = useState(false);
+  const [ragSyncMessage, setRagSyncMessage] = useState<string>();
   const [ragError, setRagError] = useState<string>();
 
   const primaryActions: Array<{
@@ -4514,6 +4515,7 @@ function AuthorAiAssistant({
 
   useEffect(() => {
     setRagEvaluation(undefined);
+    setRagSyncMessage(undefined);
   }, [novelId]);
 
   useEffect(() => {
@@ -4545,6 +4547,9 @@ function AuthorAiAssistant({
     try {
       const result = await api.reindexAuthorNovel(token, novelId);
       setRagStatus(result.status);
+      setRagSyncMessage(
+        `本次同步完成：更新 ${result.changedChapters} 章，跳过 ${result.skippedChapters} 章，耗时 ${result.durationMs} ms。`,
+      );
     } catch (err) {
       setRagError(err instanceof Error ? err.message : '作品记忆库重建失败');
     } finally {
@@ -4664,6 +4669,7 @@ function AuthorAiAssistant({
         </div>
       )}
       {ragError && <p className="author-ai-memory-error">{ragError}</p>}
+      {ragSyncMessage && <p className="author-ai-memory-message">{ragSyncMessage}</p>}
       {ragEvaluation && (
         <div className="author-ai-evaluation" aria-label="RAG 检索评测结果">
           <div className="author-ai-evaluation-heading">

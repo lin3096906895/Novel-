@@ -362,6 +362,19 @@ export interface AuthorRagEvaluationResult {
   status: AuthorRagIndexStatus;
 }
 
+export interface AuthorRagReindexResult {
+  novelId: string;
+  indexedChapters: number;
+  indexedChunks: number;
+  changedChapters: number;
+  skippedChapters: number;
+  clearedChapters?: number;
+  durationMs: number;
+  embeddingMode: string;
+  embeddingModel: string;
+  status: AuthorRagIndexStatus;
+}
+
 export interface AuthorCollectionTaskPreview {
   taskId: string;
   createdAt: string;

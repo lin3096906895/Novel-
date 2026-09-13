@@ -7504,6 +7504,13 @@ button.calendar-event-chip {
   line-height: 1.5;
 }
 
+.author-ai-memory-message {
+  margin: -6px 0 0;
+  color: #2f6b5d;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .author-ai-evaluation {
   display: grid;
   gap: 10px;
