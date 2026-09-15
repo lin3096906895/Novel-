@@ -27,11 +27,13 @@ import { AuthorAiAssistanceDto } from './dto/author-ai-assistance.dto';
 import { AuthorDashboardQueryDto } from './dto/author-dashboard-query.dto';
 import { AssignChapterVolumeDto } from './dto/assign-chapter-volume.dto';
 import { BatchDeleteChaptersDto } from './dto/batch-delete-chapters.dto';
+import { BatchReviewNovelMemoryDraftsDto } from './dto/batch-review-novel-memory-drafts.dto';
 import { CreateChapterDto } from './dto/create-chapter.dto';
 import { CreateAuthorCalendarEventDto } from './dto/create-author-calendar-event.dto';
 import { CreateNovelDto } from './dto/create-novel.dto';
 import { CreateNovelMemoryDto } from './dto/create-novel-memory.dto';
 import { ExtractNovelMemoryDto } from './dto/extract-novel-memory.dto';
+import { ListNovelMemoryDraftsDto } from './dto/list-novel-memory-drafts.dto';
 import { CreateVolumeDto } from './dto/create-volume.dto';
 import { CommitCollectionTaskDto } from './dto/commit-collection-task.dto';
 import { PreviewCollectionTaskDto } from './dto/preview-collection-task.dto';
@@ -44,6 +46,7 @@ import { UpdateChapterScheduleDto } from './dto/update-chapter-schedule.dto';
 import { UpdateNovelLifecycleDto } from './dto/update-novel-lifecycle.dto';
 import { UpdateNovelDto } from './dto/update-novel.dto';
 import { UpdateNovelMemoryDto } from './dto/update-novel-memory.dto';
+import { ReviewNovelMemoryDraftDto } from './dto/review-novel-memory-draft.dto';
 import { UpdateVolumeDto } from './dto/update-volume.dto';
 
 @Controller('author')
@@ -192,10 +195,59 @@ export class AuthorController {
     @Param('novelId') novelId: string,
     @Body() dto: ExtractNovelMemoryDto,
   ) {
+    const extraction = await this.authorAiService.extractMemoryDraft(user, novelId, dto);
     return {
       code: 0,
       message: 'AI 设定草稿已生成',
-      data: await this.authorAiService.extractMemoryDraft(user, novelId, dto),
+      data: {
+        model: extraction.model,
+        sourceChapterId: extraction.sourceChapterId,
+        drafts: await this.memoryService.saveExtractedDrafts(
+          user,
+          novelId,
+          dto.sourceChapterId,
+          extraction.drafts,
+        ),
+      },
+    };
+  }
+
+  @Get('novels/:novelId/memory-drafts')
+  async listNovelMemoryDrafts(
+    @CurrentUser() user: RequestUser,
+    @Param('novelId') novelId: string,
+    @Query() query: ListNovelMemoryDraftsDto,
+  ) {
+    return {
+      code: 0,
+      message: 'ok',
+      data: await this.memoryService.listDrafts(user, novelId, query.status),
+    };
+  }
+
+  @Patch('memory-drafts/:draftId')
+  async reviewNovelMemoryDraft(
+    @CurrentUser() user: RequestUser,
+    @Param('draftId') draftId: string,
+    @Body() dto: ReviewNovelMemoryDraftDto,
+  ) {
+    return {
+      code: 0,
+      message: dto.action === 'ACCEPT' ? '设定草稿已确认' : '设定草稿已拒绝',
+      data: await this.memoryService.reviewDraft(user, draftId, dto),
+    };
+  }
+
+  @Patch('novels/:novelId/memory-drafts/batch')
+  async batchReviewNovelMemoryDrafts(
+    @CurrentUser() user: RequestUser,
+    @Param('novelId') novelId: string,
+    @Body() dto: BatchReviewNovelMemoryDraftsDto,
+  ) {
+    return {
+      code: 0,
+      message: dto.action === 'ACCEPT' ? '设定草稿已批量确认' : '设定草稿已批量拒绝',
+      data: await this.memoryService.batchReviewDrafts(user, novelId, dto),
     };
   }
 

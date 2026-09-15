@@ -267,6 +267,81 @@ describe('AuthorAiService', () => {
     }
   });
 
+  it('parses a structured consistency report returned by the provider', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestBody = '';
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      requestBody = String(init?.body);
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  verdict: 'ISSUES_FOUND',
+                  summary: '发现一处人物能力设定冲突。',
+                  issues: [
+                    {
+                      severity: 'CRITICAL',
+                      category: 'POWER',
+                      title: '王耀提前使用了尚未掌握的术法',
+                      currentText: '王耀抬手施展天衍术。',
+                      priorEvidence: '第一章明确说明他尚未入门。[S1]',
+                      suggestion: '改为依靠基础卜算，或补充获得术法的过程。',
+                      sourceLabels: ['S1'],
+                      memoryTitles: ['王耀的修行阶段'],
+                    },
+                  ],
+                }),
+              },
+            },
+          ],
+        }),
+      };
+    }) as typeof fetch;
+
+    try {
+      const result = await createService().assistDraft(author, {
+        ...dto,
+        action: 'consistency',
+        novelId: 'novel_1',
+        beforeChapterOrder: 12,
+      });
+
+      assert.equal(result.content, '发现一处人物能力设定冲突。');
+      assert.equal(result.consistencyReport?.verdict, 'ISSUES_FOUND');
+      assert.equal(result.consistencyReport?.issues[0].severity, 'CRITICAL');
+      assert.equal(result.consistencyReport?.issues[0].category, 'POWER');
+      assert.deepEqual(result.consistencyReport?.issues[0].sourceLabels, ['S1']);
+      assert.match(requestBody, /Return JSON only/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('falls back to plain text when a consistency response is not valid JSON', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => ({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: '未发现明显冲突。' } }] }),
+    })) as typeof fetch;
+
+    try {
+      const result = await createService().assistDraft(author, {
+        ...dto,
+        action: 'consistency',
+        novelId: 'novel_1',
+        beforeChapterOrder: 12,
+      });
+
+      assert.equal(result.content, '未发现明显冲突。');
+      assert.equal(result.consistencyReport, undefined);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('requires a server-side provider key', async () => {
     await assert.rejects(
       () => createService(author.id, '').assistChapter(author, 'chapter_1', dto),

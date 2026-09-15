@@ -318,20 +318,76 @@ export interface AuthorAiAssistanceResult {
     title: string;
     sourceChapterId?: string | null;
   }>;
+  consistencyReport?: AuthorConsistencyReport;
+}
+
+export type AuthorConsistencySeverity = 'CRITICAL' | 'WARNING' | 'INFO';
+export type AuthorConsistencyCategory =
+  | 'CHARACTER'
+  | 'RELATIONSHIP'
+  | 'POWER'
+  | 'ITEM'
+  | 'LOCATION'
+  | 'TIMELINE'
+  | 'KNOWLEDGE'
+  | 'WORLD_RULE'
+  | 'FORESHADOWING';
+
+export interface AuthorConsistencyIssue {
+  severity: AuthorConsistencySeverity;
+  category: AuthorConsistencyCategory;
+  title: string;
+  currentText: string;
+  priorEvidence: string;
+  suggestion: string;
+  sourceLabels: string[];
+  memoryTitles: string[];
+}
+
+export interface AuthorConsistencyReport {
+  verdict: 'PASS' | 'ISSUES_FOUND' | 'INSUFFICIENT_EVIDENCE';
+  summary: string;
+  issues: AuthorConsistencyIssue[];
 }
 
 export interface AuthorMemoryDraft {
+  id: string;
+  novelId: string;
   type: Extract<NovelMemoryType, 'CHARACTER' | 'RELATIONSHIP' | 'FORESHADOWING'>;
   title: string;
   content: string;
-  confidence: 'high' | 'medium' | 'low';
-  evidence?: string;
+  sourceChapterId?: string | null;
+  sourceChapter?: {
+    id: string;
+    title: string;
+    orderIndex: number;
+  } | null;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  evidence?: string | null;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  acceptedMemoryId?: string | null;
+  acceptedMemory?: {
+    id: string;
+    type: NovelMemoryType;
+    title: string;
+    isConfirmed: boolean;
+  } | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AuthorMemoryExtractionResult {
   model: string;
   sourceChapterId?: string | null;
   drafts: AuthorMemoryDraft[];
+}
+
+export interface AuthorMemoryDraftBatchReviewResult {
+  requested: number;
+  processed: number;
+  skippedIds: string[];
+  items: AuthorMemoryDraft[];
 }
 
 export interface ReaderAiAssistanceResult {

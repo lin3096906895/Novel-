@@ -123,6 +123,18 @@ enum NovelMemoryType {
   FORESHADOWING
 }
 
+enum NovelMemoryDraftStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum NovelMemoryConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
 model User {
   id                         String                    @id @default(cuid())
   email                      String                    @unique
@@ -273,20 +285,21 @@ model Novel {
   sourceLicense    String?
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
-  author         User                  @relation(fields: [authorId], references: [id])
-  category       Category              @relation(fields: [categoryId], references: [id])
-  tags           Tag[]                 @relation("NovelTags")
-  volumes        NovelVolume[]
-  chapters       Chapter[]
-  announcements  NovelAnnouncement[]
-  calendarEvents AuthorCalendarEvent[]
-  bookshelf      BookshelfItem[]
-  histories      ReadingHistory[]
-  comments       Comment[]
-  ratings        NovelRating[]
-  recommendItem  RecommendItem[]
-  chunks         NovelChunk[]
-  memories       NovelMemory[]
+  author           User                  @relation(fields: [authorId], references: [id])
+  category         Category              @relation(fields: [categoryId], references: [id])
+  tags             Tag[]                 @relation("NovelTags")
+  volumes          NovelVolume[]
+  chapters         Chapter[]
+  announcements    NovelAnnouncement[]
+  calendarEvents   AuthorCalendarEvent[]
+  bookshelf        BookshelfItem[]
+  histories        ReadingHistory[]
+  comments         Comment[]
+  ratings          NovelRating[]
+  recommendItem    RecommendItem[]
+  chunks           NovelChunk[]
+  memories         NovelMemory[]
+  memoryDrafts     NovelMemoryDraft[]
 
   @@index([status, updatedAt])
   @@index([categoryId, status])
@@ -339,34 +352,35 @@ model NovelVolume {
 }
 
 model Chapter {
-  id                String              @id @default(cuid())
-  novelId           String
-  volumeId          String?
-  title             String
-  content           String
-  orderIndex        Int
-  status            ChapterStatus       @default(DRAFT)
-  wordCount         Int                 @default(0)
-  sourceKey         String?             @unique
-  sourceName        String?
-  sourceExternalId  String?
-  sourceUrl         String?
-  scheduledAt       DateTime?
-  publishedAt       DateTime?
-  deletedAt         DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  novel             Novel               @relation(fields: [novelId], references: [id])
-  volume            NovelVolume?        @relation(fields: [volumeId], references: [id], onDelete: SetNull)
-  histories         ReadingHistory[]
-  readers           ChapterRead[]
-  bookmarks         ChapterBookmark[]
-  comments          Comment[]
-  annotations       ReadingAnnotation[]
-  paragraphComments ParagraphComment[]
-  versions          ChapterVersion[]
-  chunks            NovelChunk[]
-  memorySources     NovelMemory[]      @relation("NovelMemorySourceChapter")
+  id                 String              @id @default(cuid())
+  novelId            String
+  volumeId           String?
+  title              String
+  content            String
+  orderIndex         Int
+  status             ChapterStatus       @default(DRAFT)
+  wordCount          Int                 @default(0)
+  sourceKey          String?             @unique
+  sourceName         String?
+  sourceExternalId   String?
+  sourceUrl          String?
+  scheduledAt        DateTime?
+  publishedAt        DateTime?
+  deletedAt          DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  novel              Novel               @relation(fields: [novelId], references: [id])
+  volume             NovelVolume?        @relation(fields: [volumeId], references: [id], onDelete: SetNull)
+  histories          ReadingHistory[]
+  readers            ChapterRead[]
+  bookmarks          ChapterBookmark[]
+  comments           Comment[]
+  annotations        ReadingAnnotation[]
+  paragraphComments  ParagraphComment[]
+  versions           ChapterVersion[]
+  chunks             NovelChunk[]
+  memorySources      NovelMemory[]       @relation("NovelMemorySourceChapter")
+  memoryDraftSources NovelMemoryDraft[]  @relation("NovelMemoryDraftSourceChapter")
 
   @@index([novelId, orderIndex])
   @@index([novelId, status, orderIndex])
@@ -376,23 +390,23 @@ model Chapter {
 }
 
 model NovelChunk {
-  id              String   @id @default(cuid())
-  novelId         String
-  chapterId       String
-  chapterOrder    Int
-  chunkIndex      Int
-  content         String
-  contentHash     String
-  tokenCount      Int      @default(0)
-  startOffset     Int      @default(0)
-  endOffset       Int      @default(0)
-  embeddingModel  String
-  embedding       Unsupported("vector(1024)")?
-  metadata        Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  novel           Novel    @relation(fields: [novelId], references: [id], onDelete: Cascade)
-  chapter         Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  id             String                       @id @default(cuid())
+  novelId        String
+  chapterId      String
+  chapterOrder   Int
+  chunkIndex     Int
+  content        String
+  contentHash    String
+  tokenCount     Int                          @default(0)
+  startOffset    Int                          @default(0)
+  endOffset      Int                          @default(0)
+  embeddingModel String
+  embedding      Unsupported("vector(1024)")?
+  metadata       Json?
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+  novel          Novel                        @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  chapter        Chapter                      @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
   @@unique([chapterId, chunkIndex])
   @@index([novelId, chapterOrder])
@@ -401,20 +415,43 @@ model NovelChunk {
 }
 
 model NovelMemory {
-  id              String          @id @default(cuid())
+  id              String            @id @default(cuid())
   novelId         String
   type            NovelMemoryType
   title           String
   content         String
   sourceChapterId String?
-  isConfirmed     Boolean         @default(false)
-  orderIndex      Int             @default(0)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  novel           Novel           @relation(fields: [novelId], references: [id], onDelete: Cascade)
-  sourceChapter   Chapter?        @relation("NovelMemorySourceChapter", fields: [sourceChapterId], references: [id], onDelete: SetNull)
+  isConfirmed     Boolean           @default(false)
+  orderIndex      Int               @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  novel           Novel             @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  sourceChapter   Chapter?          @relation("NovelMemorySourceChapter", fields: [sourceChapterId], references: [id], onDelete: SetNull)
+  sourceDraft     NovelMemoryDraft?
 
   @@index([novelId, type, orderIndex])
+  @@index([sourceChapterId])
+}
+
+model NovelMemoryDraft {
+  id               String                 @id @default(cuid())
+  novelId          String
+  type             NovelMemoryType
+  title            String
+  content          String
+  sourceChapterId  String?
+  confidence       NovelMemoryConfidence
+  evidence         String?
+  status           NovelMemoryDraftStatus @default(PENDING)
+  acceptedMemoryId String?                @unique
+  reviewedAt       DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  novel            Novel                  @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  sourceChapter    Chapter?               @relation("NovelMemoryDraftSourceChapter", fields: [sourceChapterId], references: [id], onDelete: SetNull)
+  acceptedMemory   NovelMemory?           @relation(fields: [acceptedMemoryId], references: [id], onDelete: SetNull)
+
+  @@index([novelId, status, createdAt])
   @@index([sourceChapterId])
 }
 

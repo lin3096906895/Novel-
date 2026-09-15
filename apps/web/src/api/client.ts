@@ -850,6 +850,50 @@ export const api = {
     );
   },
 
+  listAuthorNovelMemoryDrafts(
+    token: string,
+    novelId: string,
+    status?: import('./types').AuthorMemoryDraft['status'],
+  ) {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    return request<import('./types').AuthorMemoryDraft[]>(
+      `/author/novels/${novelId}/memory-drafts${query}`,
+      { token },
+    );
+  },
+
+  reviewAuthorNovelMemoryDraft(
+    token: string,
+    draftId: string,
+    payload: {
+      action: 'ACCEPT' | 'REJECT';
+      type?: import('./types').NovelMemoryType;
+      title?: string;
+      content?: string;
+    },
+  ) {
+    return request<import('./types').AuthorMemoryDraft>(`/author/memory-drafts/${draftId}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(payload),
+    });
+  },
+
+  batchReviewAuthorNovelMemoryDrafts(
+    token: string,
+    novelId: string,
+    payload: { draftIds: string[]; action: 'ACCEPT' | 'REJECT' },
+  ) {
+    return request<import('./types').AuthorMemoryDraftBatchReviewResult>(
+      `/author/novels/${novelId}/memory-drafts/batch`,
+      {
+        method: 'PATCH',
+        token,
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
   createAuthorNovelMemory(
     token: string,
     novelId: string,

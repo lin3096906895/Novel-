@@ -40,6 +40,32 @@ export type AuthorMemoryDraft = {
   evidence?: string;
 };
 
+export type AuthorConsistencyIssue = {
+  severity: 'CRITICAL' | 'WARNING' | 'INFO';
+  category:
+    | 'CHARACTER'
+    | 'RELATIONSHIP'
+    | 'POWER'
+    | 'ITEM'
+    | 'LOCATION'
+    | 'TIMELINE'
+    | 'KNOWLEDGE'
+    | 'WORLD_RULE'
+    | 'FORESHADOWING';
+  title: string;
+  currentText: string;
+  priorEvidence: string;
+  suggestion: string;
+  sourceLabels: string[];
+  memoryTitles: string[];
+};
+
+export type AuthorConsistencyReport = {
+  verdict: 'PASS' | 'ISSUES_FOUND' | 'INSUFFICIENT_EVIDENCE';
+  summary: string;
+  issues: AuthorConsistencyIssue[];
+};
+
 @Injectable()
 export class AuthorAiService {
   private readonly logger = new Logger(AuthorAiService.name);
@@ -322,10 +348,14 @@ export class AuthorAiService {
         );
       }
 
+      const consistencyReport =
+        dto.action === 'consistency' ? this.parseConsistencyReport(content) : undefined;
+
       return {
         action: dto.action,
-        content,
+        content: consistencyReport?.summary ?? content,
         model,
+        ...(consistencyReport ? { consistencyReport } : {}),
         ...(ragItems.length
           ? {
               sources: ragItems.map((item) => ({
@@ -522,6 +552,103 @@ export class AuthorAiService {
       .slice(0, 12);
   }
 
+  private parseConsistencyReport(raw: string): AuthorConsistencyReport | undefined {
+    const parsed = this.parseJsonPayload(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+    const value = parsed as Record<string, unknown>;
+    const verdict = String(value.verdict);
+    const summary = typeof value.summary === 'string' ? value.summary.trim().slice(0, 1200) : '';
+    if (!['PASS', 'ISSUES_FOUND', 'INSUFFICIENT_EVIDENCE'].includes(verdict) || !summary) {
+      return undefined;
+    }
+    const severities = new Set(['CRITICAL', 'WARNING', 'INFO']);
+    const categories = new Set([
+      'CHARACTER',
+      'RELATIONSHIP',
+      'POWER',
+      'ITEM',
+      'LOCATION',
+      'TIMELINE',
+      'KNOWLEDGE',
+      'WORLD_RULE',
+      'FORESHADOWING',
+    ]);
+    const issues = (Array.isArray(value.issues) ? value.issues : [])
+      .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+      .flatMap((item): AuthorConsistencyIssue[] => {
+        const severity = String(item.severity);
+        const category = String(item.category);
+        const title = typeof item.title === 'string' ? item.title.trim().slice(0, 160) : '';
+        const currentText =
+          typeof item.currentText === 'string' ? item.currentText.trim().slice(0, 1000) : '';
+        const priorEvidence =
+          typeof item.priorEvidence === 'string' ? item.priorEvidence.trim().slice(0, 1400) : '';
+        const suggestion =
+          typeof item.suggestion === 'string' ? item.suggestion.trim().slice(0, 1400) : '';
+        if (
+          !severities.has(severity) ||
+          !categories.has(category) ||
+          !title ||
+          !currentText ||
+          !priorEvidence ||
+          !suggestion
+        ) {
+          return [];
+        }
+        return [
+          {
+            severity: severity as AuthorConsistencyIssue['severity'],
+            category: category as AuthorConsistencyIssue['category'],
+            title,
+            currentText,
+            priorEvidence,
+            suggestion,
+            sourceLabels: Array.isArray(item.sourceLabels)
+              ? item.sourceLabels
+                  .filter((label): label is string => typeof label === 'string')
+                  .map((label) => label.trim().slice(0, 24))
+                  .filter(Boolean)
+                  .slice(0, 8)
+              : [],
+            memoryTitles: Array.isArray(item.memoryTitles)
+              ? item.memoryTitles
+                  .filter((memory): memory is string => typeof memory === 'string')
+                  .map((memory) => memory.trim().slice(0, 100))
+                  .filter(Boolean)
+                  .slice(0, 8)
+              : [],
+          },
+        ];
+      })
+      .slice(0, 16);
+    return {
+      verdict: verdict as AuthorConsistencyReport['verdict'],
+      summary,
+      issues,
+    };
+  }
+
+  private parseJsonPayload(raw: string): unknown {
+    const objectStart = raw.indexOf('{');
+    const objectEnd = raw.lastIndexOf('}');
+    const arrayStart = raw.indexOf('[');
+    const arrayEnd = raw.lastIndexOf(']');
+    const candidates = [
+      raw.trim(),
+      raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1]?.trim() ?? '',
+      objectStart >= 0 && objectEnd > objectStart ? raw.slice(objectStart, objectEnd + 1) : '',
+      arrayStart >= 0 && arrayEnd > arrayStart ? raw.slice(arrayStart, arrayEnd + 1) : '',
+    ].filter(Boolean);
+    for (const candidate of candidates) {
+      try {
+        return JSON.parse(candidate);
+      } catch {
+        // Try the next provider wrapper.
+      }
+    }
+    return undefined;
+  }
+
   private async resolveDraftRagContext(user: RequestUser, dto: AuthorAiAssistanceDto) {
     if (!dto.novelId) {
       return undefined;
@@ -623,7 +750,7 @@ export class AuthorAiService {
       polish:
         'Identify 3 to 6 high-value polish opportunities, then provide short revised prose snippets only for the relevant passages. Do not rewrite the whole chapter.',
       consistency:
-        'Act as a long-form fiction continuity editor. Compare the current chapter against the retrieved earlier chapters. Check character names and aliases, identity, relationships, cultivation or ability level, possessions, locations, chronology, knowledge boundaries, world rules, and unresolved setup. Distinguish a definite contradiction from a possible issue or an intentional reveal. For every issue, use the headings "问题", "严重程度", "当前文本", "前文依据", and "修改建议", and cite evidence labels such as [S1]. Never invent an earlier fact. If evidence is insufficient or no conflict is found, say "未发现有前文证据支持的明显冲突".',
+        'Act as a long-form fiction continuity editor. Compare the current chapter against retrieved earlier chapters and confirmed structured memories. Check names and aliases, identity, relationships, power level, possessions, locations, chronology, knowledge boundaries, world rules, and unresolved setup. Never invent an earlier fact. Return JSON only with this shape: {"verdict":"PASS|ISSUES_FOUND|INSUFFICIENT_EVIDENCE","summary":"中文总结","issues":[{"severity":"CRITICAL|WARNING|INFO","category":"CHARACTER|RELATIONSHIP|POWER|ITEM|LOCATION|TIMELINE|KNOWLEDGE|WORLD_RULE|FORESHADOWING","title":"问题标题","currentText":"当前文本","priorEvidence":"前文或已确认设定依据","suggestion":"修改建议","sourceLabels":["S1"],"memoryTitles":["设定标题"]}]}. A definite contradiction is CRITICAL, a plausible inconsistency is WARNING, and an intentional reveal or reminder is INFO. If no evidence-backed issue exists, return PASS with an empty issues array. If evidence is insufficient, return INSUFFICIENT_EVIDENCE. Use only supplied S labels and memory titles.',
     };
 
     return `${shared} ${instructions[action]}`;

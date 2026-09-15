@@ -42,6 +42,7 @@ import type {
   AuthorApplication,
   AuthorAiAction,
   AuthorAiAssistanceResult,
+  AuthorConsistencyReport,
   AuthorCalendar,
   AuthorCalendarEvent,
   AuthorCalendarEventType,
@@ -1350,6 +1351,7 @@ export function AuthorPage() {
                   isLoading={isLoadingMemories}
                   memories={novelMemories}
                   novel={selectedNovel}
+                  onRefreshMemories={() => loadNovelMemories(token, selectedNovel.id)}
                   onCreate={async (payload) => {
                     setIsUpdatingMemory(true);
                     setError(undefined);
@@ -4677,6 +4679,7 @@ function AuthorAiAssistant({
   const [isRagEvaluating, setIsRagEvaluating] = useState(false);
   const [ragSyncMessage, setRagSyncMessage] = useState<string>();
   const [ragError, setRagError] = useState<string>();
+  const [resolvedConsistencyIssues, setResolvedConsistencyIssues] = useState<number[]>([]);
 
   const primaryActions: Array<{
     action: AuthorAiAction;
@@ -4730,6 +4733,7 @@ function AuthorAiAssistant({
     setError(undefined);
     setCopied(false);
     setQuery('');
+    setResolvedConsistencyIssues([]);
   }, [chapter?.id]);
 
   useEffect(() => {
@@ -4819,11 +4823,11 @@ function AuthorAiAssistant({
         novelId,
         beforeChapterOrder,
       };
-      setResult(
-        chapter
-          ? await api.authorAiAssist(token, chapter.id, payload)
-          : await api.authorAiAssistDraft(token, payload),
-      );
+      const nextResult = chapter
+        ? await api.authorAiAssist(token, chapter.id, payload)
+        : await api.authorAiAssistDraft(token, payload);
+      setResult(nextResult);
+      setResolvedConsistencyIssues([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'AI 辅助暂时不可用，请稍后重试。');
     } finally {
@@ -4996,7 +5000,21 @@ function AuthorAiAssistant({
             <strong>{actionLabels[result.action]}</strong>
             <span>{result.model}</span>
           </div>
-          <pre>{result.content}</pre>
+          {result.consistencyReport ? (
+            <ConsistencyReportPanel
+              report={result.consistencyReport}
+              resolvedIssues={resolvedConsistencyIssues}
+              onToggleResolved={(index) =>
+                setResolvedConsistencyIssues((current) =>
+                  current.includes(index)
+                    ? current.filter((item) => item !== index)
+                    : [...current, index],
+                )
+              }
+            />
+          ) : (
+            <pre>{result.content}</pre>
+          )}
           {result.sources && result.sources.length > 0 && (
             <div className="author-ai-sources">
               <div className="author-ai-sources-heading">
@@ -5042,6 +5060,100 @@ function AuthorAiAssistant({
   );
 }
 
+function ConsistencyReportPanel({
+  report,
+  resolvedIssues,
+  onToggleResolved,
+}: {
+  report: AuthorConsistencyReport;
+  resolvedIssues: number[];
+  onToggleResolved(index: number): void;
+}) {
+  const verdictLabels: Record<AuthorConsistencyReport['verdict'], string> = {
+    PASS: '未发现明显冲突',
+    ISSUES_FOUND: '发现一致性问题',
+    INSUFFICIENT_EVIDENCE: '前文证据不足',
+  };
+  const severityLabels = { CRITICAL: '严重冲突', WARNING: '疑似问题', INFO: '伏笔 / 提醒' };
+  const categoryLabels = {
+    CHARACTER: '人物',
+    RELATIONSHIP: '关系',
+    POWER: '能力等级',
+    ITEM: '物品',
+    LOCATION: '地点',
+    TIMELINE: '时间线',
+    KNOWLEDGE: '信息边界',
+    WORLD_RULE: '世界规则',
+    FORESHADOWING: '伏笔',
+  };
+
+  return (
+    <div className="consistency-report">
+      <header className={`consistency-report-summary ${report.verdict.toLowerCase()}`}>
+        <div>
+          <ShieldCheck size={18} aria-hidden />
+          <strong>{verdictLabels[report.verdict]}</strong>
+        </div>
+        <span>
+          {resolvedIssues.length}/{report.issues.length} 已处理
+        </span>
+        <p>{report.summary}</p>
+      </header>
+      {report.issues.length > 0 && (
+        <div className="consistency-issue-list">
+          {report.issues.map((issue, index) => {
+            const isResolved = resolvedIssues.includes(index);
+            return (
+              <article
+                className={`consistency-issue ${issue.severity.toLowerCase()}${isResolved ? ' resolved' : ''}`}
+                key={`${issue.category}-${issue.title}-${index}`}
+              >
+                <div className="consistency-issue-heading">
+                  <div>
+                    <span className={`consistency-severity ${issue.severity.toLowerCase()}`}>
+                      {severityLabels[issue.severity]}
+                    </span>
+                    <span>{categoryLabels[issue.category]}</span>
+                  </div>
+                  <button type="button" onClick={() => onToggleResolved(index)}>
+                    <CircleCheckBig size={14} aria-hidden />
+                    {isResolved ? '取消已处理' : '标记已处理'}
+                  </button>
+                </div>
+                <h4>{issue.title}</h4>
+                <dl>
+                  <div>
+                    <dt>当前文本</dt>
+                    <dd>{issue.currentText}</dd>
+                  </div>
+                  <div>
+                    <dt>前文依据</dt>
+                    <dd>{issue.priorEvidence}</dd>
+                  </div>
+                  <div>
+                    <dt>修改建议</dt>
+                    <dd>{issue.suggestion}</dd>
+                  </div>
+                </dl>
+                {(issue.sourceLabels.length > 0 || issue.memoryTitles.length > 0) && (
+                  <footer>
+                    {issue.sourceLabels.map((label) => (
+                      <span key={label}>{label}</span>
+                    ))}
+                    {issue.memoryTitles.map((memory) => (
+                      <span key={memory}>设定：{memory}</span>
+                    ))}
+                  </footer>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NovelKnowledgeBasePanel({
   novel,
   chapters,
@@ -5051,6 +5163,7 @@ function NovelKnowledgeBasePanel({
   onCreate,
   onUpdate,
   onDelete,
+  onRefreshMemories,
 }: {
   novel: AuthorNovel;
   chapters: DraftChapter[];
@@ -5075,6 +5188,7 @@ function NovelKnowledgeBasePanel({
     }>,
   ): Promise<void>;
   onDelete(memoryId: string): Promise<void>;
+  onRefreshMemories(): Promise<void>;
 }) {
   const memoryLabels: Record<NovelMemoryType, string> = {
     CHARACTER: '人物',
@@ -5105,6 +5219,10 @@ function NovelKnowledgeBasePanel({
   const [extractChapterId, setExtractChapterId] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionDrafts, setExtractionDrafts] = useState<AuthorMemoryDraft[]>([]);
+  const [draftStatus, setDraftStatus] = useState<AuthorMemoryDraft['status']>('PENDING');
+  const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
+  const [isDraftLoading, setIsDraftLoading] = useState(false);
+  const [isDraftReviewing, setIsDraftReviewing] = useState(false);
   const [extractionError, setExtractionError] = useState('');
   const [extractionMessage, setExtractionMessage] = useState('');
   const { token } = useAuth();
@@ -5130,10 +5248,32 @@ function NovelKnowledgeBasePanel({
     setExtractChapterId((current) =>
       chapters.some((chapter) => chapter.id === current) ? current : (chapters.at(-1)?.id ?? ''),
     );
-    setExtractionDrafts([]);
     setExtractionError('');
     setExtractionMessage('');
   }, [chapters, novel.id]);
+
+  useEffect(() => {
+    if (!token) return;
+    let active = true;
+    setIsDraftLoading(true);
+    setExtractionDrafts([]);
+    setSelectedDraftIds([]);
+    setExtractionError('');
+    void api
+      .listAuthorNovelMemoryDrafts(token, novel.id, draftStatus)
+      .then((drafts) => {
+        if (active) setExtractionDrafts(drafts);
+      })
+      .catch((err) => {
+        if (active) setExtractionError(err instanceof Error ? err.message : '审校草稿加载失败');
+      })
+      .finally(() => {
+        if (active) setIsDraftLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [draftStatus, novel.id, token]);
 
   const visibleMemories =
     activeType === 'ALL' ? memories : memories.filter((memory) => memory.type === activeType);
@@ -5232,7 +5372,11 @@ function NovelKnowledgeBasePanel({
         sourceChapterId: chapter.id,
         beforeChapterOrder: Math.max(chapter.orderIndex - 1, 0),
       });
-      setExtractionDrafts(result.drafts);
+      setDraftStatus('PENDING');
+      setExtractionDrafts((current) => [
+        ...result.drafts,
+        ...current.filter((draft) => !result.drafts.some((item) => item.id === draft.id)),
+      ]);
       setExtractionMessage(
         result.drafts.length
           ? `AI 生成了 ${result.drafts.length} 条待确认草稿。确认后才会写入知识库。`
@@ -5245,18 +5389,44 @@ function NovelKnowledgeBasePanel({
     }
   }
 
-  async function confirmExtraction(draft: AuthorMemoryDraft) {
-    const chapter = chapters.find((item) => item.id === extractChapterId);
-    if (!chapter) return;
-    await onCreate({
-      type: draft.type,
-      title: draft.title,
-      content: draft.content,
-      sourceChapterId: chapter.id,
-      isConfirmed: true,
-    });
-    setExtractionDrafts((current) => current.filter((item) => item !== draft));
-    setExtractionMessage('已确认并写入知识库。');
+  async function reviewExtraction(draft: AuthorMemoryDraft, action: 'ACCEPT' | 'REJECT') {
+    if (!token || isDraftReviewing) return;
+    setIsDraftReviewing(true);
+    setExtractionError('');
+    try {
+      await api.reviewAuthorNovelMemoryDraft(token, draft.id, { action });
+      setExtractionDrafts((current) => current.filter((item) => item.id !== draft.id));
+      setSelectedDraftIds((current) => current.filter((id) => id !== draft.id));
+      if (action === 'ACCEPT') await onRefreshMemories();
+      setExtractionMessage(action === 'ACCEPT' ? '草稿已确认并写入正式知识库。' : '草稿已拒绝。');
+    } catch (err) {
+      setExtractionError(err instanceof Error ? err.message : '草稿审校失败');
+    } finally {
+      setIsDraftReviewing(false);
+    }
+  }
+
+  async function batchReviewExtractions(action: 'ACCEPT' | 'REJECT') {
+    if (!token || selectedDraftIds.length === 0 || isDraftReviewing) return;
+    setIsDraftReviewing(true);
+    setExtractionError('');
+    try {
+      const result = await api.batchReviewAuthorNovelMemoryDrafts(token, novel.id, {
+        draftIds: selectedDraftIds,
+        action,
+      });
+      const processedIds = new Set(result.items.map((item) => item.id));
+      setExtractionDrafts((current) => current.filter((item) => !processedIds.has(item.id)));
+      setSelectedDraftIds([]);
+      if (action === 'ACCEPT' && result.processed > 0) await onRefreshMemories();
+      setExtractionMessage(
+        `${action === 'ACCEPT' ? '确认' : '拒绝'} ${result.processed} 条草稿${result.skippedIds.length ? `，跳过 ${result.skippedIds.length} 条已处理记录` : ''}。`,
+      );
+    } catch (err) {
+      setExtractionError(err instanceof Error ? err.message : '批量审校失败');
+    } finally {
+      setIsDraftReviewing(false);
+    }
   }
 
   return (
@@ -5360,31 +5530,141 @@ function NovelKnowledgeBasePanel({
         </div>
         {extractionMessage && <p className="knowledge-base-message">{extractionMessage}</p>}
         {extractionError && <p className="knowledge-base-error">{extractionError}</p>}
-        {extractionDrafts.length > 0 && (
-          <div className="knowledge-base-drafts" aria-label="待确认的AI设定草稿">
-            {extractionDrafts.map((draft, index) => (
-              <article
-                className="knowledge-memory-draft"
-                key={`${draft.type}-${draft.title}-${index}`}
+        <div className="knowledge-review-toolbar">
+          <div className="knowledge-review-tabs" role="tablist" aria-label="AI草稿审校状态">
+            {(
+              [
+                ['PENDING', '待确认'],
+                ['ACCEPTED', '已采纳'],
+                ['REJECTED', '已拒绝'],
+              ] as const
+            ).map(([status, label]) => (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={draftStatus === status}
+                className={draftStatus === status ? 'active' : ''}
+                key={status}
+                onClick={() => setDraftStatus(status)}
               >
-                <div>
+                {label}
+              </button>
+            ))}
+          </div>
+          {draftStatus === 'PENDING' && extractionDrafts.length > 0 && (
+            <div className="knowledge-review-batch-actions">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={
+                    extractionDrafts.length > 0 &&
+                    selectedDraftIds.length === extractionDrafts.length
+                  }
+                  onChange={(event) =>
+                    setSelectedDraftIds(
+                      event.target.checked ? extractionDrafts.map((draft) => draft.id) : [],
+                    )
+                  }
+                />
+                全选
+              </label>
+              <button
+                type="button"
+                disabled={selectedDraftIds.length === 0 || isDraftReviewing}
+                onClick={() => void batchReviewExtractions('ACCEPT')}
+              >
+                批量采纳 {selectedDraftIds.length || ''}
+              </button>
+              <button
+                type="button"
+                disabled={selectedDraftIds.length === 0 || isDraftReviewing}
+                onClick={() => void batchReviewExtractions('REJECT')}
+              >
+                批量拒绝
+              </button>
+            </div>
+          )}
+        </div>
+        {isDraftLoading ? (
+          <p className="knowledge-review-empty">正在加载审校草稿…</p>
+        ) : extractionDrafts.length === 0 ? (
+          <p className="knowledge-review-empty">
+            {draftStatus === 'PENDING'
+              ? '当前没有待确认草稿，可以选择章节让 AI 提取。'
+              : draftStatus === 'ACCEPTED'
+                ? '还没有已采纳的 AI 草稿。'
+                : '还没有已拒绝的 AI 草稿。'}
+          </p>
+        ) : (
+          <div className="knowledge-base-drafts" aria-label="AI设定审校草稿">
+            {extractionDrafts.map((draft) => (
+              <article
+                className={`knowledge-memory-draft ${draft.status.toLowerCase()}`}
+                key={draft.id}
+              >
+                <div className="knowledge-memory-draft-topline">
+                  {draftStatus === 'PENDING' && (
+                    <input
+                      type="checkbox"
+                      aria-label={`选择草稿 ${draft.title}`}
+                      checked={selectedDraftIds.includes(draft.id)}
+                      onChange={(event) =>
+                        setSelectedDraftIds((current) =>
+                          event.target.checked
+                            ? [...current, draft.id]
+                            : current.filter((id) => id !== draft.id),
+                        )
+                      }
+                    />
+                  )}
                   <span className={`knowledge-memory-type ${memoryColors[draft.type]}`}>
                     {memoryLabels[draft.type]}
                   </span>
-                  <span className="knowledge-memory-confidence">置信度 {draft.confidence}</span>
+                  <span className={`knowledge-memory-confidence ${draft.confidence.toLowerCase()}`}>
+                    {draft.confidence === 'HIGH'
+                      ? '高置信度'
+                      : draft.confidence === 'MEDIUM'
+                        ? '中置信度'
+                        : '低置信度'}
+                  </span>
+                  <span className={`knowledge-memory-review-status ${draft.status.toLowerCase()}`}>
+                    {draft.status === 'PENDING'
+                      ? '待确认'
+                      : draft.status === 'ACCEPTED'
+                        ? '已采纳'
+                        : '已拒绝'}
+                  </span>
                 </div>
                 <h4>{draft.title}</h4>
                 <p>{draft.content}</p>
-                {draft.evidence && <small>依据：{draft.evidence}</small>}
-                <button
-                  type="button"
-                  className="ghost-button"
-                  disabled={disabled}
-                  onClick={() => void confirmExtraction(draft)}
-                >
-                  <CircleCheckBig size={14} aria-hidden />
-                  确认加入
-                </button>
+                {draft.evidence && <small>正文依据：{draft.evidence}</small>}
+                <small>
+                  {draft.sourceChapter
+                    ? `来源：第 ${draft.sourceChapter.orderIndex} 章《${draft.sourceChapter.title}》`
+                    : '未指定来源章节'}
+                </small>
+                {draft.status === 'PENDING' && (
+                  <div className="knowledge-memory-draft-actions">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      disabled={disabled || isDraftReviewing}
+                      onClick={() => void reviewExtraction(draft, 'ACCEPT')}
+                    >
+                      <CircleCheckBig size={14} aria-hidden />
+                      确认加入
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-button danger"
+                      disabled={disabled || isDraftReviewing}
+                      onClick={() => void reviewExtraction(draft, 'REJECT')}
+                    >
+                      <X size={14} aria-hidden />
+                      拒绝
+                    </button>
+                  </div>
+                )}
               </article>
             ))}
           </div>
