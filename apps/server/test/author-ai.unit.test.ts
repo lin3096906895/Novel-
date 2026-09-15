@@ -15,7 +15,9 @@ const author = {
 function createService(
   authorId = author.id,
   apiKey = 'test-key',
-  ragService?: { retrieve(input: Record<string, unknown>): Promise<Array<Record<string, unknown>>> },
+  ragService?: {
+    retrieve(input: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
+  },
 ) {
   return new AuthorAiService(
     {
@@ -161,6 +163,105 @@ describe('AuthorAiService', () => {
           excerpt: '王耀给自己算了一卦，随后准备参加仙门考核。',
         },
       ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('injects confirmed structured memories alongside retrieved context', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestBody = '';
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      requestBody = String(init?.body);
+      return {
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: '已结合设定' } }] }),
+      };
+    }) as typeof fetch;
+
+    try {
+      const service = new AuthorAiService(
+        {
+          chapter: {
+            findUnique: async () => ({
+              novelId: 'novel_1',
+              orderIndex: 12,
+              novel: { authorId: author.id },
+            }),
+          },
+          novel: {
+            findUnique: async () => ({ authorId: author.id, chapters: [{ orderIndex: 12 }] }),
+          },
+          novelMemory: {
+            findMany: async () => [
+              {
+                id: 'memory_1',
+                type: 'CHARACTER',
+                title: '王耀',
+                content: '主角，擅长推演气运。',
+                sourceChapterId: 'chapter_1',
+                sourceChapter: { orderIndex: 1, title: '第一章' },
+              },
+            ],
+          },
+        } as never,
+        { get: (name: string) => (name === 'DEEPSEEK_API_KEY' ? 'test-key' : undefined) } as never,
+      );
+
+      const result = await service.assistDraft(author, {
+        ...dto,
+        action: 'consistency',
+        novelId: 'novel_1',
+        beforeChapterOrder: 12,
+      });
+      assert.match(requestBody, /已确认的作品结构化设定/);
+      assert.match(requestBody, /王耀/);
+      assert.deepEqual(result.memorySources, [
+        {
+          id: 'memory_1',
+          type: 'CHARACTER',
+          title: '王耀',
+          sourceChapterId: 'chapter_1',
+        },
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('returns unpersisted memory drafts from the extraction endpoint workflow', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content:
+                '```json\n{"drafts":[{"type":"CHARACTER","title":"王耀","content":"擅长推演气运。","confidence":"high","evidence":"他在章节中展示了推演能力。"}]}\n```',
+            },
+          },
+        ],
+      }),
+    })) as typeof fetch;
+
+    try {
+      const service = new AuthorAiService(
+        {
+          novel: { findUnique: async () => ({ authorId: author.id }) },
+          chapter: { findFirst: async () => ({ id: 'chapter_1' }) },
+        } as never,
+        { get: (name: string) => (name === 'DEEPSEEK_API_KEY' ? 'test-key' : undefined) } as never,
+      );
+      const result = await service.extractMemoryDraft(author, 'novel_1', {
+        title: '第一章',
+        content: '王耀抬手推演气运，发现山门上空有异象。',
+        sourceChapterId: 'chapter_1',
+      });
+      assert.equal(result.drafts.length, 1);
+      assert.equal(result.drafts[0].type, 'CHARACTER');
+      assert.equal(result.drafts[0].title, '王耀');
+      assert.equal(result.sourceChapterId, 'chapter_1');
     } finally {
       globalThis.fetch = originalFetch;
     }

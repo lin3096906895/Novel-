@@ -31,6 +31,7 @@ import { CreateChapterDto } from './dto/create-chapter.dto';
 import { CreateAuthorCalendarEventDto } from './dto/create-author-calendar-event.dto';
 import { CreateNovelDto } from './dto/create-novel.dto';
 import { CreateNovelMemoryDto } from './dto/create-novel-memory.dto';
+import { ExtractNovelMemoryDto } from './dto/extract-novel-memory.dto';
 import { CreateVolumeDto } from './dto/create-volume.dto';
 import { CommitCollectionTaskDto } from './dto/commit-collection-task.dto';
 import { PreviewCollectionTaskDto } from './dto/preview-collection-task.dto';
@@ -164,10 +165,7 @@ export class AuthorController {
   }
 
   @Get('novels/:novelId/memories')
-  async listNovelMemories(
-    @CurrentUser() user: RequestUser,
-    @Param('novelId') novelId: string,
-  ) {
+  async listNovelMemories(@CurrentUser() user: RequestUser, @Param('novelId') novelId: string) {
     return {
       code: 0,
       message: 'ok',
@@ -188,6 +186,19 @@ export class AuthorController {
     };
   }
 
+  @Post('novels/:novelId/memories/extract')
+  async extractNovelMemoryDraft(
+    @CurrentUser() user: RequestUser,
+    @Param('novelId') novelId: string,
+    @Body() dto: ExtractNovelMemoryDto,
+  ) {
+    return {
+      code: 0,
+      message: 'AI 设定草稿已生成',
+      data: await this.authorAiService.extractMemoryDraft(user, novelId, dto),
+    };
+  }
+
   @Patch('memories/:memoryId')
   async updateNovelMemory(
     @CurrentUser() user: RequestUser,
@@ -202,10 +213,7 @@ export class AuthorController {
   }
 
   @Delete('memories/:memoryId')
-  async deleteNovelMemory(
-    @CurrentUser() user: RequestUser,
-    @Param('memoryId') memoryId: string,
-  ) {
+  async deleteNovelMemory(@CurrentUser() user: RequestUser, @Param('memoryId') memoryId: string) {
     return {
       code: 0,
       message: '记忆条目已删除',
@@ -405,10 +413,7 @@ export class AuthorController {
   }
 
   @Get('novels/:novelId/rag/status')
-  async getNovelRagStatus(
-    @CurrentUser() user: RequestUser,
-    @Param('novelId') novelId: string,
-  ) {
+  async getNovelRagStatus(@CurrentUser() user: RequestUser, @Param('novelId') novelId: string) {
     return {
       code: 0,
       message: 'ok',
@@ -417,10 +422,7 @@ export class AuthorController {
   }
 
   @Post('novels/:novelId/rag/reindex')
-  async reindexNovelForRag(
-    @CurrentUser() user: RequestUser,
-    @Param('novelId') novelId: string,
-  ) {
+  async reindexNovelForRag(@CurrentUser() user: RequestUser, @Param('novelId') novelId: string) {
     return {
       code: 0,
       message: '作品知识库已重建',
@@ -429,10 +431,7 @@ export class AuthorController {
   }
 
   @Post('novels/:novelId/rag/evaluate')
-  async evaluateNovelRag(
-    @CurrentUser() user: RequestUser,
-    @Param('novelId') novelId: string,
-  ) {
+  async evaluateNovelRag(@CurrentUser() user: RequestUser, @Param('novelId') novelId: string) {
     return {
       code: 0,
       message: '作品检索评测已完成',

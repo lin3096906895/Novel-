@@ -312,6 +312,26 @@ export interface AuthorAiAssistanceResult {
     title?: string;
     excerpt?: string;
   }>;
+  memorySources?: Array<{
+    id: string;
+    type: NovelMemoryType;
+    title: string;
+    sourceChapterId?: string | null;
+  }>;
+}
+
+export interface AuthorMemoryDraft {
+  type: Extract<NovelMemoryType, 'CHARACTER' | 'RELATIONSHIP' | 'FORESHADOWING'>;
+  title: string;
+  content: string;
+  confidence: 'high' | 'medium' | 'low';
+  evidence?: string;
+}
+
+export interface AuthorMemoryExtractionResult {
+  model: string;
+  sourceChapterId?: string | null;
+  drafts: AuthorMemoryDraft[];
 }
 
 export interface ReaderAiAssistanceResult {
@@ -376,11 +396,7 @@ export interface AuthorRagReindexResult {
 }
 
 export type NovelMemoryType =
-  | 'CHARACTER'
-  | 'RELATIONSHIP'
-  | 'WORLDVIEW'
-  | 'TIMELINE'
-  | 'FORESHADOWING';
+  'CHARACTER' | 'RELATIONSHIP' | 'WORLDVIEW' | 'TIMELINE' | 'FORESHADOWING';
 
 export interface NovelMemory {
   id: string;

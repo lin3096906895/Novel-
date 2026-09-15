@@ -50,6 +50,7 @@ import type {
   AuthorCollectionHtmlAnalysis,
   AuthorCollectionJsonAnalysis,
   AuthorDashboard,
+  AuthorMemoryDraft,
   AuthorNovel,
   AuthorRagEvaluationResult,
   AuthorOnboarding,
@@ -104,13 +105,7 @@ type CalendarPlanPayload = {
 type AutoSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 type DashboardTrendMetric = 'bookshelfAdds' | 'comments' | 'publishedWords';
 type AuthorWorkspaceView =
-  | 'home'
-  | 'dashboard'
-  | 'appeals'
-  | 'works'
-  | 'collection'
-  | 'planning'
-  | 'profile';
+  'home' | 'dashboard' | 'appeals' | 'works' | 'collection' | 'planning' | 'profile';
 type AuthorWorkView = 'novel' | 'catalog' | 'memory';
 
 const authorWorkspaceLabels: Record<AuthorWorkspaceView, string> = {
@@ -917,7 +912,10 @@ export function AuthorPage() {
                           </span>
                         </div>
                         <h2>{selectedNovel.title}</h2>
-                        <p>{selectedNovel.summary || '还没有填写作品简介，完善档案让读者更快了解你的故事。'}</p>
+                        <p>
+                          {selectedNovel.summary ||
+                            '还没有填写作品简介，完善档案让读者更快了解你的故事。'}
+                        </p>
                         <div className="author-work-hero-meta">
                           <span>{selectedNovel.category.name}</span>
                           <span>{formatDashboardNumber(selectedNovel.wordCount)} 字</span>
@@ -1129,173 +1127,173 @@ export function AuthorPage() {
                   <CatalogOverview novel={selectedNovel} />
                   <div className="author-catalog-workbench">
                     <VolumeManagerPanel
-                    disabled={isUpdatingVolumes || !token}
-                    novel={selectedNovel}
-                    onCreate={async (payload) => {
-                      if (!token || !selectedNovel) {
-                        return;
-                      }
-                      setIsUpdatingVolumes(true);
-                      setError(undefined);
-                      setMessage(undefined);
-                      try {
-                        await api.createAuthorVolume(token, selectedNovel.id, payload);
-                        await loadData(token);
-                        setMessage('分卷已创建');
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : '分卷创建失败');
-                        throw err;
-                      } finally {
-                        setIsUpdatingVolumes(false);
-                      }
-                    }}
-                    onUpdate={async (volumeId, payload) => {
-                      if (!token) {
-                        return;
-                      }
-                      setIsUpdatingVolumes(true);
-                      setError(undefined);
-                      setMessage(undefined);
-                      try {
-                        await api.updateAuthorVolume(token, volumeId, payload);
-                        await loadData(token);
-                        setMessage('分卷已更新');
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : '分卷更新失败');
-                        throw err;
-                      } finally {
-                        setIsUpdatingVolumes(false);
-                      }
-                    }}
-                    onDelete={async (volumeId) => {
-                      if (!token) {
-                        return;
-                      }
-                      setIsUpdatingVolumes(true);
-                      setError(undefined);
-                      setMessage(undefined);
-                      try {
-                        await api.deleteAuthorVolume(token, volumeId);
-                        await loadData(token);
-                        setMessage('分卷已删除');
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : '分卷删除失败');
-                        throw err;
-                      } finally {
-                        setIsUpdatingVolumes(false);
-                      }
-                    }}
-                    onReorder={async (volumeIds) => {
-                      if (!token || !selectedNovel) {
-                        return;
-                      }
-                      setIsUpdatingVolumes(true);
-                      setError(undefined);
-                      setMessage(undefined);
-                      try {
-                        await api.reorderAuthorVolumes(token, selectedNovel.id, volumeIds);
-                        await loadData(token);
-                        setMessage('分卷顺序已更新');
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : '分卷排序失败');
-                        throw err;
-                      } finally {
-                        setIsUpdatingVolumes(false);
-                      }
-                    }}
+                      disabled={isUpdatingVolumes || !token}
+                      novel={selectedNovel}
+                      onCreate={async (payload) => {
+                        if (!token || !selectedNovel) {
+                          return;
+                        }
+                        setIsUpdatingVolumes(true);
+                        setError(undefined);
+                        setMessage(undefined);
+                        try {
+                          await api.createAuthorVolume(token, selectedNovel.id, payload);
+                          await loadData(token);
+                          setMessage('分卷已创建');
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : '分卷创建失败');
+                          throw err;
+                        } finally {
+                          setIsUpdatingVolumes(false);
+                        }
+                      }}
+                      onUpdate={async (volumeId, payload) => {
+                        if (!token) {
+                          return;
+                        }
+                        setIsUpdatingVolumes(true);
+                        setError(undefined);
+                        setMessage(undefined);
+                        try {
+                          await api.updateAuthorVolume(token, volumeId, payload);
+                          await loadData(token);
+                          setMessage('分卷已更新');
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : '分卷更新失败');
+                          throw err;
+                        } finally {
+                          setIsUpdatingVolumes(false);
+                        }
+                      }}
+                      onDelete={async (volumeId) => {
+                        if (!token) {
+                          return;
+                        }
+                        setIsUpdatingVolumes(true);
+                        setError(undefined);
+                        setMessage(undefined);
+                        try {
+                          await api.deleteAuthorVolume(token, volumeId);
+                          await loadData(token);
+                          setMessage('分卷已删除');
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : '分卷删除失败');
+                          throw err;
+                        } finally {
+                          setIsUpdatingVolumes(false);
+                        }
+                      }}
+                      onReorder={async (volumeIds) => {
+                        if (!token || !selectedNovel) {
+                          return;
+                        }
+                        setIsUpdatingVolumes(true);
+                        setError(undefined);
+                        setMessage(undefined);
+                        try {
+                          await api.reorderAuthorVolumes(token, selectedNovel.id, volumeIds);
+                          await loadData(token);
+                          setMessage('分卷顺序已更新');
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : '分卷排序失败');
+                          throw err;
+                        } finally {
+                          setIsUpdatingVolumes(false);
+                        }
+                      }}
                     />
 
                     <ChapterListPanel
-                    chapters={selectedNovel?.chapters ?? []}
-                    volumes={selectedNovel?.volumes ?? []}
-                    disabled={isUpdatingChapters || !token}
-                    selectedChapterId={selectedChapterId}
-                    onSelect={(chapterId) => navigate(`/write/${selectedNovel.id}/${chapterId}`)}
-                    onDelete={async (chapterIds) => {
-                      if (!token || !selectedNovel) {
-                        return;
-                      }
+                      chapters={selectedNovel?.chapters ?? []}
+                      volumes={selectedNovel?.volumes ?? []}
+                      disabled={isUpdatingChapters || !token}
+                      selectedChapterId={selectedChapterId}
+                      onSelect={(chapterId) => navigate(`/write/${selectedNovel.id}/${chapterId}`)}
+                      onDelete={async (chapterIds) => {
+                        if (!token || !selectedNovel) {
+                          return;
+                        }
 
-                      setIsUpdatingChapters(true);
-                      setError(undefined);
-                      setMessage(undefined);
-                      try {
-                        const result = await api.deleteAuthorChapters(
-                          token,
-                          selectedNovel.id,
-                          chapterIds,
-                        );
-                        setNovels((current) =>
-                          current.map((novel) =>
-                            novel.id === selectedNovel.id
-                              ? {
-                                  ...novel,
-                                  chapters: result.chapters,
-                                  _count: { ...novel._count, chapters: result.chapters.length },
-                                }
-                              : novel,
-                          ),
-                        );
-                        setSelectedChapterId((current) =>
-                          result.chapters.some((chapter) => chapter.id === current)
-                            ? current
-                            : result.chapters[0]?.id || '',
-                        );
-                        setMessage(`已将 ${result.deletedCount} 个章节移入回收站`);
-                        await loadChapterTrash(token, selectedNovel.id);
-                        await loadDashboard(token, dashboardDays);
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : '删除失败');
-                        throw err;
-                      } finally {
-                        setIsUpdatingChapters(false);
-                      }
-                    }}
-                    onReorder={async (chapterIds) => {
-                      if (!token || !selectedNovel) {
-                        return;
-                      }
+                        setIsUpdatingChapters(true);
+                        setError(undefined);
+                        setMessage(undefined);
+                        try {
+                          const result = await api.deleteAuthorChapters(
+                            token,
+                            selectedNovel.id,
+                            chapterIds,
+                          );
+                          setNovels((current) =>
+                            current.map((novel) =>
+                              novel.id === selectedNovel.id
+                                ? {
+                                    ...novel,
+                                    chapters: result.chapters,
+                                    _count: { ...novel._count, chapters: result.chapters.length },
+                                  }
+                                : novel,
+                            ),
+                          );
+                          setSelectedChapterId((current) =>
+                            result.chapters.some((chapter) => chapter.id === current)
+                              ? current
+                              : result.chapters[0]?.id || '',
+                          );
+                          setMessage(`已将 ${result.deletedCount} 个章节移入回收站`);
+                          await loadChapterTrash(token, selectedNovel.id);
+                          await loadDashboard(token, dashboardDays);
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : '删除失败');
+                          throw err;
+                        } finally {
+                          setIsUpdatingChapters(false);
+                        }
+                      }}
+                      onReorder={async (chapterIds) => {
+                        if (!token || !selectedNovel) {
+                          return;
+                        }
 
-                      setIsUpdatingChapters(true);
-                      setError(undefined);
-                      setMessage(undefined);
-                      try {
-                        const chapters = await api.reorderAuthorChapters(
-                          token,
-                          selectedNovel.id,
-                          chapterIds,
-                        );
-                        setNovels((current) =>
-                          current.map((novel) =>
-                            novel.id === selectedNovel.id ? { ...novel, chapters } : novel,
-                          ),
-                        );
-                        setMessage('章节顺序已更新');
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : '排序失败');
-                        throw err;
-                      } finally {
-                        setIsUpdatingChapters(false);
-                      }
-                    }}
-                    onAssignVolume={async (chapterId, volumeId) => {
-                      if (!token) {
-                        return;
-                      }
-                      setIsUpdatingChapters(true);
-                      setError(undefined);
-                      setMessage(undefined);
-                      try {
-                        await api.assignAuthorChapterVolume(token, chapterId, volumeId);
-                        await loadData(token);
-                        setMessage('章节分卷已更新');
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : '章节归卷失败');
-                        throw err;
-                      } finally {
-                        setIsUpdatingChapters(false);
-                      }
-                    }}
+                        setIsUpdatingChapters(true);
+                        setError(undefined);
+                        setMessage(undefined);
+                        try {
+                          const chapters = await api.reorderAuthorChapters(
+                            token,
+                            selectedNovel.id,
+                            chapterIds,
+                          );
+                          setNovels((current) =>
+                            current.map((novel) =>
+                              novel.id === selectedNovel.id ? { ...novel, chapters } : novel,
+                            ),
+                          );
+                          setMessage('章节顺序已更新');
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : '排序失败');
+                          throw err;
+                        } finally {
+                          setIsUpdatingChapters(false);
+                        }
+                      }}
+                      onAssignVolume={async (chapterId, volumeId) => {
+                        if (!token) {
+                          return;
+                        }
+                        setIsUpdatingChapters(true);
+                        setError(undefined);
+                        setMessage(undefined);
+                        try {
+                          await api.assignAuthorChapterVolume(token, chapterId, volumeId);
+                          await loadData(token);
+                          setMessage('章节分卷已更新');
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : '章节归卷失败');
+                          throw err;
+                        } finally {
+                          setIsUpdatingChapters(false);
+                        }
+                      }}
                     />
                   </div>
 
@@ -1608,7 +1606,9 @@ function AuthorCollectionTaskPanel({
   const [startChapter, setStartChapter] = useState(1);
   const [endChapter, setEndChapter] = useState<number | ''>('');
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
-  const [analysis, setAnalysis] = useState<AuthorCollectionHtmlAnalysis | AuthorCollectionJsonAnalysis>();
+  const [analysis, setAnalysis] = useState<
+    AuthorCollectionHtmlAnalysis | AuthorCollectionJsonAnalysis
+  >();
   const [mapping, setMapping] = useState<CollectionMapping>({
     titlePath: '',
     summaryPath: '',
@@ -1629,12 +1629,10 @@ function AuthorCollectionTaskPanel({
   const [isCommitting, setIsCommitting] = useState(false);
   const [localError, setLocalError] = useState<string>();
 
-  const htmlAnalysis = sourceType === 'html' && analysis
-    ? (analysis as AuthorCollectionHtmlAnalysis)
-    : undefined;
-  const jsonAnalysis = sourceType === 'json' && analysis
-    ? (analysis as AuthorCollectionJsonAnalysis)
-    : undefined;
+  const htmlAnalysis =
+    sourceType === 'html' && analysis ? (analysis as AuthorCollectionHtmlAnalysis) : undefined;
+  const jsonAnalysis =
+    sourceType === 'json' && analysis ? (analysis as AuthorCollectionJsonAnalysis) : undefined;
 
   useEffect(() => {
     setCategoryId((current) => current || categories[0]?.id || '');
@@ -1663,8 +1661,10 @@ function AuthorCollectionTaskPanel({
           ...current,
           titleSelector: analyzed.candidates.titleSelectors[0] ?? current.titleSelector,
           summarySelector: analyzed.candidates.summarySelectors[0] ?? current.summarySelector,
-          chapterLinkSelector: analyzed.candidates.chapterLinkSelectors[0] ?? current.chapterLinkSelector,
-          chapterContentSelector: analyzed.candidates.contentSelectors[0] ?? current.chapterContentSelector,
+          chapterLinkSelector:
+            analyzed.candidates.chapterLinkSelectors[0] ?? current.chapterLinkSelector,
+          chapterContentSelector:
+            analyzed.candidates.contentSelectors[0] ?? current.chapterContentSelector,
         }));
       } else {
         const analyzed = await api.analyzeJsonCollectionSource(token, url);
@@ -1674,9 +1674,18 @@ function AuthorCollectionTaskPanel({
           titlePath: analyzed.candidates.titlePaths[0] ?? current.titlePath,
           summaryPath: analyzed.candidates.summaryPaths[0] ?? current.summaryPath,
           chaptersPath: analyzed.candidates.chapterArrayPaths[0] ?? current.chaptersPath,
-          chapterTitlePath: jsonItemPath(analyzed.candidates.titlePaths.find((path) => path.includes('[0]')) ?? current.chapterTitlePath),
-          chapterContentPath: jsonItemPath(analyzed.candidates.contentPaths.find((path) => path.includes('[0]')) ?? current.chapterContentPath),
-          chapterUrlPath: jsonItemPath(analyzed.candidates.urlPaths.find((path) => path.includes('[0]')) ?? current.chapterUrlPath),
+          chapterTitlePath: jsonItemPath(
+            analyzed.candidates.titlePaths.find((path) => path.includes('[0]')) ??
+              current.chapterTitlePath,
+          ),
+          chapterContentPath: jsonItemPath(
+            analyzed.candidates.contentPaths.find((path) => path.includes('[0]')) ??
+              current.chapterContentPath,
+          ),
+          chapterUrlPath: jsonItemPath(
+            analyzed.candidates.urlPaths.find((path) => path.includes('[0]')) ??
+              current.chapterUrlPath,
+          ),
         }));
       }
     } catch (error) {
@@ -1697,8 +1706,16 @@ function AuthorCollectionTaskPanel({
       setLocalError('请输入来源网址，并先完成页面结构分析。');
       return;
     }
-    if (sourceType === 'json' && (!mapping.titlePath || !mapping.chaptersPath || !mapping.chapterTitlePath || !mapping.chapterContentPath)) {
-      setLocalError('JSON 采集还缺少必要字段映射，请先分析接口并补全标题、章节数组、章节标题和正文路径。');
+    if (
+      sourceType === 'json' &&
+      (!mapping.titlePath ||
+        !mapping.chaptersPath ||
+        !mapping.chapterTitlePath ||
+        !mapping.chapterContentPath)
+    ) {
+      setLocalError(
+        'JSON 采集还缺少必要字段映射，请先分析接口并补全标题、章节数组、章节标题和正文路径。',
+      );
       return;
     }
     if (endChapter !== '' && endChapter < startChapter) {
@@ -1803,11 +1820,15 @@ function AuthorCollectionTaskPanel({
           <Globe2 size={20} aria-hidden />
         </div>
         <p className="collection-task-intro">
-          先选择来源类型。对于 HTML 页面或 JSON 接口，输入网址后点击“分析页面”，系统会给出可用的字段/选择器，你可以手动校正后再生成章节预览。
+          先选择来源类型。对于 HTML 页面或 JSON
+          接口，输入网址后点击“分析页面”，系统会给出可用的字段/选择器，你可以手动校正后再生成章节预览。
         </p>
         <label>
           采集来源
-          <select value={sourceType} onChange={(event) => changeSourceType(event.target.value as CollectionSourceType)}>
+          <select
+            value={sourceType}
+            onChange={(event) => changeSourceType(event.target.value as CollectionSourceType)}
+          >
             <option value="wikisource">中文维基文库（公版）</option>
             <option value="html">HTML 页面（需确认授权）</option>
             <option value="json">JSON 接口（需确认授权）</option>
@@ -1820,7 +1841,11 @@ function AuthorCollectionTaskPanel({
               <input
                 required
                 type="url"
-                placeholder={sourceType === 'html' ? '例如：https://example.com/book/list.html' : '例如：https://example.com/api/book/1'}
+                placeholder={
+                  sourceType === 'html'
+                    ? '例如：https://example.com/book/list.html'
+                    : '例如：https://example.com/api/book/1'
+                }
                 value={sourceUrl}
                 onChange={(event) => {
                   setSourceUrl(event.target.value);
@@ -1828,7 +1853,12 @@ function AuthorCollectionTaskPanel({
                 }}
               />
             </label>
-            <button className="ghost-button collection-analyze-button" type="button" onClick={analyzeSource} disabled={isAnalyzing}>
+            <button
+              className="ghost-button collection-analyze-button"
+              type="button"
+              onClick={analyzeSource}
+              disabled={isAnalyzing}
+            >
               <RefreshCcw className={isAnalyzing ? 'is-spinning' : ''} size={15} aria-hidden />
               {isAnalyzing ? '分析中...' : '分析页面'}
             </button>
@@ -1887,7 +1917,11 @@ function AuthorCollectionTaskPanel({
               max={1000000}
               placeholder={`默认采集 ${startChapter}-${startChapter + maxChapters - 1} 章`}
               value={endChapter}
-              onChange={(event) => setEndChapter(event.target.value ? Math.max(startChapter, Number(event.target.value)) : '')}
+              onChange={(event) =>
+                setEndChapter(
+                  event.target.value ? Math.max(startChapter, Number(event.target.value)) : '',
+                )
+              }
             />
           </label>
           <label>
@@ -1907,15 +1941,54 @@ function AuthorCollectionTaskPanel({
             <div className="collection-analysis-heading">
               <div>
                 <strong>HTML 结构分析完成</strong>
-                <span>页面标题：{htmlAnalysis.title || '未识别'} · 链接 {htmlAnalysis.counts.links} 个 · 疑似章节链接 {htmlAnalysis.counts.chapterLinks} 个</span>
+                <span>
+                  页面标题：{htmlAnalysis.title || '未识别'} · 链接 {htmlAnalysis.counts.links} 个 ·
+                  疑似章节链接 {htmlAnalysis.counts.chapterLinks} 个
+                </span>
               </div>
               <small>可直接使用候选值，也可以手动输入选择器</small>
             </div>
             <div className="collection-analysis-grid">
-              <CollectionMappingField id="html-title" label="书名选择器" value={mapping.titleSelector} options={htmlAnalysis.candidates.titleSelectors} placeholder="#info h1" onChange={(value) => setMapping((current) => ({ ...current, titleSelector: value }))} />
-              <CollectionMappingField id="html-summary" label="简介选择器" value={mapping.summarySelector} options={htmlAnalysis.candidates.summarySelectors} placeholder="#intro" onChange={(value) => setMapping((current) => ({ ...current, summarySelector: value }))} />
-              <CollectionMappingField id="html-links" label="章节链接选择器" value={mapping.chapterLinkSelector} options={htmlAnalysis.candidates.chapterLinkSelectors} placeholder={'a[rel="chapter"]'} onChange={(value) => setMapping((current) => ({ ...current, chapterLinkSelector: value }))} />
-              <CollectionMappingField id="html-content" label="章节正文选择器" value={mapping.chapterContentSelector} options={htmlAnalysis.candidates.contentSelectors} placeholder="#booktxt" onChange={(value) => setMapping((current) => ({ ...current, chapterContentSelector: value }))} />
+              <CollectionMappingField
+                id="html-title"
+                label="书名选择器"
+                value={mapping.titleSelector}
+                options={htmlAnalysis.candidates.titleSelectors}
+                placeholder="#info h1"
+                onChange={(value) =>
+                  setMapping((current) => ({ ...current, titleSelector: value }))
+                }
+              />
+              <CollectionMappingField
+                id="html-summary"
+                label="简介选择器"
+                value={mapping.summarySelector}
+                options={htmlAnalysis.candidates.summarySelectors}
+                placeholder="#intro"
+                onChange={(value) =>
+                  setMapping((current) => ({ ...current, summarySelector: value }))
+                }
+              />
+              <CollectionMappingField
+                id="html-links"
+                label="章节链接选择器"
+                value={mapping.chapterLinkSelector}
+                options={htmlAnalysis.candidates.chapterLinkSelectors}
+                placeholder={'a[rel="chapter"]'}
+                onChange={(value) =>
+                  setMapping((current) => ({ ...current, chapterLinkSelector: value }))
+                }
+              />
+              <CollectionMappingField
+                id="html-content"
+                label="章节正文选择器"
+                value={mapping.chapterContentSelector}
+                options={htmlAnalysis.candidates.contentSelectors}
+                placeholder="#booktxt"
+                onChange={(value) =>
+                  setMapping((current) => ({ ...current, chapterContentSelector: value }))
+                }
+              />
             </div>
           </div>
         )}
@@ -1924,18 +1997,83 @@ function AuthorCollectionTaskPanel({
             <div className="collection-analysis-heading">
               <div>
                 <strong>JSON 结构分析完成</strong>
-                <span>根节点类型：{jsonAnalysis.rootType} · 字段 {jsonAnalysis.fields.length} 个 · 数组 {jsonAnalysis.arrays.length} 个</span>
+                <span>
+                  根节点类型：{jsonAnalysis.rootType} · 字段 {jsonAnalysis.fields.length} 个 · 数组{' '}
+                  {jsonAnalysis.arrays.length} 个
+                </span>
               </div>
               <small>章节字段路径相对于章节数组中的单条记录</small>
             </div>
             <div className="collection-analysis-grid">
-              <CollectionMappingField id="json-title" label="书名路径" value={mapping.titlePath} options={jsonAnalysis.candidates.titlePaths} placeholder="$.title" onChange={(value) => setMapping((current) => ({ ...current, titlePath: value }))} />
-              <CollectionMappingField id="json-summary" label="简介路径（可选）" value={mapping.summaryPath} options={jsonAnalysis.candidates.summaryPaths} placeholder="$.summary" onChange={(value) => setMapping((current) => ({ ...current, summaryPath: value }))} />
-              <CollectionMappingField id="json-chapters" label="章节数组路径" value={mapping.chaptersPath} options={jsonAnalysis.candidates.chapterArrayPaths} placeholder="$.chapters" onChange={(value) => setMapping((current) => ({ ...current, chaptersPath: value }))} />
-              <CollectionMappingField id="json-chapter-title" label="章节标题路径" value={mapping.chapterTitlePath} options={jsonAnalysis.candidates.titlePaths.filter((path: string) => path.includes('[0]')).map(jsonItemPath)} placeholder="title" onChange={(value) => setMapping((current) => ({ ...current, chapterTitlePath: value }))} />
-              <CollectionMappingField id="json-content" label="章节正文路径" value={mapping.chapterContentPath} options={jsonAnalysis.candidates.contentPaths.filter((path: string) => path.includes('[0]')).map(jsonItemPath)} placeholder="content" onChange={(value) => setMapping((current) => ({ ...current, chapterContentPath: value }))} />
-              <CollectionMappingField id="json-url" label="章节链接路径（可选）" value={mapping.chapterUrlPath} options={jsonAnalysis.candidates.urlPaths.filter((path: string) => path.includes('[0]')).map(jsonItemPath)} placeholder="url" onChange={(value) => setMapping((current) => ({ ...current, chapterUrlPath: value }))} />
-              <CollectionMappingField id="json-id" label="章节 ID 路径（可选）" value={mapping.chapterIdPath} placeholder="id" onChange={(value) => setMapping((current) => ({ ...current, chapterIdPath: value }))} />
+              <CollectionMappingField
+                id="json-title"
+                label="书名路径"
+                value={mapping.titlePath}
+                options={jsonAnalysis.candidates.titlePaths}
+                placeholder="$.title"
+                onChange={(value) => setMapping((current) => ({ ...current, titlePath: value }))}
+              />
+              <CollectionMappingField
+                id="json-summary"
+                label="简介路径（可选）"
+                value={mapping.summaryPath}
+                options={jsonAnalysis.candidates.summaryPaths}
+                placeholder="$.summary"
+                onChange={(value) => setMapping((current) => ({ ...current, summaryPath: value }))}
+              />
+              <CollectionMappingField
+                id="json-chapters"
+                label="章节数组路径"
+                value={mapping.chaptersPath}
+                options={jsonAnalysis.candidates.chapterArrayPaths}
+                placeholder="$.chapters"
+                onChange={(value) => setMapping((current) => ({ ...current, chaptersPath: value }))}
+              />
+              <CollectionMappingField
+                id="json-chapter-title"
+                label="章节标题路径"
+                value={mapping.chapterTitlePath}
+                options={jsonAnalysis.candidates.titlePaths
+                  .filter((path: string) => path.includes('[0]'))
+                  .map(jsonItemPath)}
+                placeholder="title"
+                onChange={(value) =>
+                  setMapping((current) => ({ ...current, chapterTitlePath: value }))
+                }
+              />
+              <CollectionMappingField
+                id="json-content"
+                label="章节正文路径"
+                value={mapping.chapterContentPath}
+                options={jsonAnalysis.candidates.contentPaths
+                  .filter((path: string) => path.includes('[0]'))
+                  .map(jsonItemPath)}
+                placeholder="content"
+                onChange={(value) =>
+                  setMapping((current) => ({ ...current, chapterContentPath: value }))
+                }
+              />
+              <CollectionMappingField
+                id="json-url"
+                label="章节链接路径（可选）"
+                value={mapping.chapterUrlPath}
+                options={jsonAnalysis.candidates.urlPaths
+                  .filter((path: string) => path.includes('[0]'))
+                  .map(jsonItemPath)}
+                placeholder="url"
+                onChange={(value) =>
+                  setMapping((current) => ({ ...current, chapterUrlPath: value }))
+                }
+              />
+              <CollectionMappingField
+                id="json-id"
+                label="章节 ID 路径（可选）"
+                value={mapping.chapterIdPath}
+                placeholder="id"
+                onChange={(value) =>
+                  setMapping((current) => ({ ...current, chapterIdPath: value }))
+                }
+              />
             </div>
           </div>
         )}
@@ -1945,9 +2083,7 @@ function AuthorCollectionTaskPanel({
             checked={rightsConfirmed}
             onChange={(event) => setRightsConfirmed(event.target.checked)}
           />
-          <span>
-            我确认该作品属于公版内容，或我已经取得可在本平台复制、发布的明确授权。
-          </span>
+          <span>我确认该作品属于公版内容，或我已经取得可在本平台复制、发布的明确授权。</span>
         </label>
         <p className="collection-task-guardrail">
           仅支持白名单域名；不会绕过登录、付费墙、验证码或网站反爬措施。请只导入公版或你拥有明确授权的内容。
@@ -1971,7 +2107,10 @@ function AuthorCollectionTaskPanel({
         <section className="panel collection-task-preview">
           <div className="collection-preview-heading">
             <div className="collection-preview-book">
-              <NovelCover novel={{ title: preview.title, coverUrl: preview.coverUrl }} size="mini" />
+              <NovelCover
+                novel={{ title: preview.title, coverUrl: preview.coverUrl }}
+                size="mini"
+              />
               <div>
                 <p className="eyebrow">待确认任务</p>
                 <h2>{preview.title}</h2>
@@ -3668,7 +3807,9 @@ function VolumeManagerPanel({
               </div>
               <span>{unassignedCount} 章</span>
             </div>
-            {volumes.length === 0 && <p className="state-line">创建第一个分卷，让长篇结构更清晰。</p>}
+            {volumes.length === 0 && (
+              <p className="state-line">创建第一个分卷，让长篇结构更清晰。</p>
+            )}
             {volumes.map((volume, index) => (
               <VolumeRow
                 key={volume.id}
@@ -4886,7 +5027,11 @@ function AuthorAiAssistant({
               {copied ? '已复制' : '复制建议'}
             </button>
             {result.action !== 'consistency' && (
-              <button className="ghost-button" type="button" onClick={() => onAppend(result.content)}>
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => onAppend(result.content)}
+              >
                 插入正文末尾
               </button>
             )}
@@ -4957,6 +5102,11 @@ function NovelKnowledgeBasePanel({
   const [isRagLoading, setIsRagLoading] = useState(false);
   const [ragMessage, setRagMessage] = useState('');
   const [ragError, setRagError] = useState('');
+  const [extractChapterId, setExtractChapterId] = useState('');
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionDrafts, setExtractionDrafts] = useState<AuthorMemoryDraft[]>([]);
+  const [extractionError, setExtractionError] = useState('');
+  const [extractionMessage, setExtractionMessage] = useState('');
   const { token } = useAuth();
 
   useEffect(() => {
@@ -4976,9 +5126,17 @@ function NovelKnowledgeBasePanel({
     };
   }, [novel.id, token]);
 
-  const visibleMemories = activeType === 'ALL'
-    ? memories
-    : memories.filter((memory) => memory.type === activeType);
+  useEffect(() => {
+    setExtractChapterId((current) =>
+      chapters.some((chapter) => chapter.id === current) ? current : (chapters.at(-1)?.id ?? ''),
+    );
+    setExtractionDrafts([]);
+    setExtractionError('');
+    setExtractionMessage('');
+  }, [chapters, novel.id]);
+
+  const visibleMemories =
+    activeType === 'ALL' ? memories : memories.filter((memory) => memory.type === activeType);
 
   function resetForm() {
     setEditingId(undefined);
@@ -4996,7 +5154,13 @@ function NovelKnowledgeBasePanel({
     setContent(memory.content);
     setSourceChapterId(memory.sourceChapterId ?? '');
     setIsConfirmed(memory.isConfirmed);
-    window.setTimeout(() => document.getElementById('novel-memory-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+    window.setTimeout(
+      () =>
+        document
+          .getElementById('novel-memory-form')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+      0,
+    );
   }
 
   async function submitMemory(event: FormEvent<HTMLFormElement>) {
@@ -5025,7 +5189,9 @@ function NovelKnowledgeBasePanel({
     try {
       const result = await api.reindexAuthorNovel(token, novel.id);
       setRagStatus(result.status);
-      setRagMessage(`索引同步完成：更新 ${result.changedChapters} 章，跳过 ${result.skippedChapters} 章。`);
+      setRagMessage(
+        `索引同步完成：更新 ${result.changedChapters} 章，跳过 ${result.skippedChapters} 章。`,
+      );
     } catch (err) {
       setRagError(err instanceof Error ? err.message : '索引同步失败');
     } finally {
@@ -5047,6 +5213,50 @@ function NovelKnowledgeBasePanel({
     } finally {
       setIsRagLoading(false);
     }
+  }
+
+  async function extractMemories() {
+    if (!token || !extractChapterId || isExtracting) return;
+    const chapter = chapters.find((item) => item.id === extractChapterId);
+    if (!chapter || chapter.content.trim().length < 20) {
+      setExtractionError('所选章节正文不足 20 个字符，暂时无法提取。');
+      return;
+    }
+    setIsExtracting(true);
+    setExtractionError('');
+    setExtractionMessage('');
+    try {
+      const result = await api.extractAuthorNovelMemoryDrafts(token, novel.id, {
+        title: chapter.title,
+        content: chapter.content,
+        sourceChapterId: chapter.id,
+        beforeChapterOrder: Math.max(chapter.orderIndex - 1, 0),
+      });
+      setExtractionDrafts(result.drafts);
+      setExtractionMessage(
+        result.drafts.length
+          ? `AI 生成了 ${result.drafts.length} 条待确认草稿。确认后才会写入知识库。`
+          : '本章没有提取到足够可靠的设定草稿。',
+      );
+    } catch (err) {
+      setExtractionError(err instanceof Error ? err.message : 'AI 设定提取失败');
+    } finally {
+      setIsExtracting(false);
+    }
+  }
+
+  async function confirmExtraction(draft: AuthorMemoryDraft) {
+    const chapter = chapters.find((item) => item.id === extractChapterId);
+    if (!chapter) return;
+    await onCreate({
+      type: draft.type,
+      title: draft.title,
+      content: draft.content,
+      sourceChapterId: chapter.id,
+      isConfirmed: true,
+    });
+    setExtractionDrafts((current) => current.filter((item) => item !== draft));
+    setExtractionMessage('已确认并写入知识库。');
   }
 
   return (
@@ -5076,11 +5286,19 @@ function NovelKnowledgeBasePanel({
           </span>
         </div>
         <div className="knowledge-base-rag-actions">
-          <button type="button" disabled={isRagLoading || !ragStatus?.enabled} onClick={() => void syncRag()}>
+          <button
+            type="button"
+            disabled={isRagLoading || !ragStatus?.enabled}
+            onClick={() => void syncRag()}
+          >
             <RefreshCcw size={14} aria-hidden />
             {isRagLoading ? '处理中…' : '同步索引'}
           </button>
-          <button type="button" disabled={isRagLoading || !ragStatus?.enabled} onClick={() => void evaluateRag()}>
+          <button
+            type="button"
+            disabled={isRagLoading || !ragStatus?.enabled}
+            onClick={() => void evaluateRag()}
+          >
             <BarChart3 size={14} aria-hidden />
             检索评测
           </button>
@@ -5091,50 +5309,170 @@ function NovelKnowledgeBasePanel({
       {ragEvaluation && (
         <div className="knowledge-base-evaluation">
           <strong>检索质量快照</strong>
-          <span>Top 1 {Math.round((ragEvaluation.hitAt1 / Math.max(ragEvaluation.evaluatedCases, 1)) * 100)}%</span>
-          <span>Top 3 {Math.round((ragEvaluation.hitAt3 / Math.max(ragEvaluation.evaluatedCases, 1)) * 100)}%</span>
-          <span>Top 5 {Math.round((ragEvaluation.hitAt5 / Math.max(ragEvaluation.evaluatedCases, 1)) * 100)}%</span>
+          <span>
+            Top 1{' '}
+            {Math.round((ragEvaluation.hitAt1 / Math.max(ragEvaluation.evaluatedCases, 1)) * 100)}%
+          </span>
+          <span>
+            Top 3{' '}
+            {Math.round((ragEvaluation.hitAt3 / Math.max(ragEvaluation.evaluatedCases, 1)) * 100)}%
+          </span>
+          <span>
+            Top 5{' '}
+            {Math.round((ragEvaluation.hitAt5 / Math.max(ragEvaluation.evaluatedCases, 1)) * 100)}%
+          </span>
           <span>平均排名 {ragEvaluation.averageRank ?? '—'}</span>
         </div>
       )}
 
+      <div className="knowledge-base-extractor">
+        <div className="knowledge-base-extractor-heading">
+          <div>
+            <span className="eyebrow">AI MEMORY DRAFTS</span>
+            <h3>从章节提取设定草稿</h3>
+            <p>AI 只负责整理人物、关系和伏笔；你确认后才会保存到作品知识库。</p>
+          </div>
+          <Sparkles size={20} aria-hidden />
+        </div>
+        <div className="knowledge-base-extractor-controls">
+          <select
+            aria-label="选择要提取的章节"
+            value={extractChapterId}
+            onChange={(event) => setExtractChapterId(event.target.value)}
+            disabled={disabled || isExtracting || chapters.length === 0}
+          >
+            <option value="">选择来源章节</option>
+            {chapters.map((chapter) => (
+              <option key={chapter.id} value={chapter.id}>
+                第 {chapter.orderIndex} 章 · {chapter.title}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="primary-link"
+            disabled={disabled || isExtracting || !token || !extractChapterId}
+            onClick={() => void extractMemories()}
+          >
+            <Sparkles size={16} aria-hidden />
+            {isExtracting ? '提取中…' : '生成草稿'}
+          </button>
+        </div>
+        {extractionMessage && <p className="knowledge-base-message">{extractionMessage}</p>}
+        {extractionError && <p className="knowledge-base-error">{extractionError}</p>}
+        {extractionDrafts.length > 0 && (
+          <div className="knowledge-base-drafts" aria-label="待确认的AI设定草稿">
+            {extractionDrafts.map((draft, index) => (
+              <article
+                className="knowledge-memory-draft"
+                key={`${draft.type}-${draft.title}-${index}`}
+              >
+                <div>
+                  <span className={`knowledge-memory-type ${memoryColors[draft.type]}`}>
+                    {memoryLabels[draft.type]}
+                  </span>
+                  <span className="knowledge-memory-confidence">置信度 {draft.confidence}</span>
+                </div>
+                <h4>{draft.title}</h4>
+                <p>{draft.content}</p>
+                {draft.evidence && <small>依据：{draft.evidence}</small>}
+                <button
+                  type="button"
+                  className="ghost-button"
+                  disabled={disabled}
+                  onClick={() => void confirmExtraction(draft)}
+                >
+                  <CircleCheckBig size={14} aria-hidden />
+                  确认加入
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="knowledge-base-layout">
-        <form id="novel-memory-form" className="panel knowledge-base-editor" onSubmit={(event) => void submitMemory(event)}>
+        <form
+          id="novel-memory-form"
+          className="panel knowledge-base-editor"
+          onSubmit={(event) => void submitMemory(event)}
+        >
           <div className="knowledge-base-editor-heading">
             <div>
               <span className="eyebrow">{editingId ? 'EDIT MEMORY' : 'ADD MEMORY'}</span>
               <h3>{editingId ? '编辑记忆条目' : '新增结构化记忆'}</h3>
             </div>
-            {editingId && <button className="ghost-button" type="button" onClick={resetForm}>取消编辑</button>}
+            {editingId && (
+              <button className="ghost-button" type="button" onClick={resetForm}>
+                取消编辑
+              </button>
+            )}
           </div>
           <label>
             <span>记忆类型</span>
-            <select value={type} onChange={(event) => setType(event.target.value as NovelMemoryType)} disabled={disabled}>
+            <select
+              value={type}
+              onChange={(event) => setType(event.target.value as NovelMemoryType)}
+              disabled={disabled}
+            >
               {(Object.keys(memoryLabels) as NovelMemoryType[]).map((memoryType) => (
-                <option key={memoryType} value={memoryType}>{memoryLabels[memoryType]}</option>
+                <option key={memoryType} value={memoryType}>
+                  {memoryLabels[memoryType]}
+                </option>
               ))}
             </select>
           </label>
           <label>
             <span>标题</span>
-            <input value={title} maxLength={100} placeholder="例如：林泊｜档案修复师" onChange={(event) => setTitle(event.target.value)} disabled={disabled} />
+            <input
+              value={title}
+              maxLength={100}
+              placeholder="例如：林泊｜档案修复师"
+              onChange={(event) => setTitle(event.target.value)}
+              disabled={disabled}
+            />
           </label>
           <label>
             <span>内容</span>
-            <textarea value={content} maxLength={4000} placeholder="写下稳定设定、人物动机或伏笔回收条件…" onChange={(event) => setContent(event.target.value)} disabled={disabled} />
+            <textarea
+              value={content}
+              maxLength={4000}
+              placeholder="写下稳定设定、人物动机或伏笔回收条件…"
+              onChange={(event) => setContent(event.target.value)}
+              disabled={disabled}
+            />
           </label>
           <label>
-            <span>来源章节 <small>可选</small></span>
-            <select value={sourceChapterId} onChange={(event) => setSourceChapterId(event.target.value)} disabled={disabled}>
+            <span>
+              来源章节 <small>可选</small>
+            </span>
+            <select
+              value={sourceChapterId}
+              onChange={(event) => setSourceChapterId(event.target.value)}
+              disabled={disabled}
+            >
               <option value="">不指定来源</option>
-              {chapters.map((chapter) => <option key={chapter.id} value={chapter.id}>第 {chapter.orderIndex} 章 · {chapter.title}</option>)}
+              {chapters.map((chapter) => (
+                <option key={chapter.id} value={chapter.id}>
+                  第 {chapter.orderIndex} 章 · {chapter.title}
+                </option>
+              ))}
             </select>
           </label>
           <label className="knowledge-base-confirmed">
-            <input type="checkbox" checked={isConfirmed} onChange={(event) => setIsConfirmed(event.target.checked)} disabled={disabled} />
+            <input
+              type="checkbox"
+              checked={isConfirmed}
+              onChange={(event) => setIsConfirmed(event.target.checked)}
+              disabled={disabled}
+            />
             <span>标记为已确认设定</span>
           </label>
-          <button className="primary-link" type="submit" disabled={disabled || !title.trim() || !content.trim()}>
+          <button
+            className="primary-link"
+            type="submit"
+            disabled={disabled || !title.trim() || !content.trim()}
+          >
             <Save size={16} aria-hidden />
             {editingId ? '保存修改' : '加入知识库'}
           </button>
@@ -5142,32 +5480,70 @@ function NovelKnowledgeBasePanel({
 
         <div className="knowledge-base-list">
           <div className="knowledge-base-filters" role="tablist" aria-label="记忆类型筛选">
-            <button className={activeType === 'ALL' ? 'active' : ''} type="button" onClick={() => setActiveType('ALL')}>全部 <span>{memories.length}</span></button>
+            <button
+              className={activeType === 'ALL' ? 'active' : ''}
+              type="button"
+              onClick={() => setActiveType('ALL')}
+            >
+              全部 <span>{memories.length}</span>
+            </button>
             {(Object.keys(memoryLabels) as NovelMemoryType[]).map((memoryType) => (
-              <button key={memoryType} className={activeType === memoryType ? 'active' : ''} type="button" onClick={() => setActiveType(memoryType)}>
-                {memoryLabels[memoryType]} <span>{memories.filter((memory) => memory.type === memoryType).length}</span>
+              <button
+                key={memoryType}
+                className={activeType === memoryType ? 'active' : ''}
+                type="button"
+                onClick={() => setActiveType(memoryType)}
+              >
+                {memoryLabels[memoryType]}{' '}
+                <span>{memories.filter((memory) => memory.type === memoryType).length}</span>
               </button>
             ))}
           </div>
-          {isLoading ? <p className="knowledge-base-empty">正在加载知识库…</p> : visibleMemories.length === 0 ? (
-            <div className="knowledge-base-empty"><Database size={24} aria-hidden /><strong>还没有结构化记忆</strong><span>从左侧添加第一条设定，后续一致性审校会优先参考它。</span></div>
-          ) : visibleMemories.map((memory) => (
-            <article className="knowledge-memory-card" key={memory.id}>
-              <div className="knowledge-memory-card-topline">
-                <span className={`knowledge-memory-type ${memoryColors[memory.type]}`}>{memoryLabels[memory.type]}</span>
-                {memory.isConfirmed && <span className="knowledge-memory-confirmed"><CircleCheckBig size={13} aria-hidden /> 已确认</span>}
-              </div>
-              <h3>{memory.title}</h3>
-              <p>{memory.content}</p>
-              <footer>
-                <span>{memory.sourceChapter ? `来源：第 ${memory.sourceChapter.orderIndex} 章` : '手动设定'}</span>
-                <div>
-                  <button type="button" onClick={() => beginEdit(memory)} disabled={disabled}><PencilLine size={14} aria-hidden /> 编辑</button>
-                  <button type="button" onClick={() => void onDelete(memory.id)} disabled={disabled}><Trash2 size={14} aria-hidden /> 删除</button>
+          {isLoading ? (
+            <p className="knowledge-base-empty">正在加载知识库…</p>
+          ) : visibleMemories.length === 0 ? (
+            <div className="knowledge-base-empty">
+              <Database size={24} aria-hidden />
+              <strong>还没有结构化记忆</strong>
+              <span>从左侧添加第一条设定，后续一致性审校会优先参考它。</span>
+            </div>
+          ) : (
+            visibleMemories.map((memory) => (
+              <article className="knowledge-memory-card" key={memory.id}>
+                <div className="knowledge-memory-card-topline">
+                  <span className={`knowledge-memory-type ${memoryColors[memory.type]}`}>
+                    {memoryLabels[memory.type]}
+                  </span>
+                  {memory.isConfirmed && (
+                    <span className="knowledge-memory-confirmed">
+                      <CircleCheckBig size={13} aria-hidden /> 已确认
+                    </span>
+                  )}
                 </div>
-              </footer>
-            </article>
-          ))}
+                <h3>{memory.title}</h3>
+                <p>{memory.content}</p>
+                <footer>
+                  <span>
+                    {memory.sourceChapter
+                      ? `来源：第 ${memory.sourceChapter.orderIndex} 章`
+                      : '手动设定'}
+                  </span>
+                  <div>
+                    <button type="button" onClick={() => beginEdit(memory)} disabled={disabled}>
+                      <PencilLine size={14} aria-hidden /> 编辑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void onDelete(memory.id)}
+                      disabled={disabled}
+                    >
+                      <Trash2 size={14} aria-hidden /> 删除
+                    </button>
+                  </div>
+                </footer>
+              </article>
+            ))
+          )}
         </div>
       </div>
     </section>
@@ -5676,9 +6052,18 @@ function AuthorState({ title, children }: { title: string; children?: ReactNode 
       <h1>{title}</h1>
       <p>在阅界创作中心管理作品、编排章节，并使用 AI 与知识库辅助长篇创作。</p>
       <div className="author-gateway-features" aria-hidden>
-        <span><PencilLine size={14} />沉浸写作</span>
-        <span><Sparkles size={14} />AI 辅助</span>
-        <span><Database size={14} />作品知识库</span>
+        <span>
+          <PencilLine size={14} />
+          沉浸写作
+        </span>
+        <span>
+          <Sparkles size={14} />
+          AI 辅助
+        </span>
+        <span>
+          <Database size={14} />
+          作品知识库
+        </span>
       </div>
       <div className="author-gateway-actions">{children}</div>
     </section>

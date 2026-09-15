@@ -805,10 +805,13 @@ export const api = {
   },
 
   reindexAuthorNovel(token: string, novelId: string) {
-    return request<import('./types').AuthorRagReindexResult>(`/author/novels/${novelId}/rag/reindex`, {
-      method: 'POST',
-      token,
-    });
+    return request<import('./types').AuthorRagReindexResult>(
+      `/author/novels/${novelId}/rag/reindex`,
+      {
+        method: 'POST',
+        token,
+      },
+    );
   },
 
   evaluateAuthorNovelRag(token: string, novelId: string) {
@@ -822,7 +825,29 @@ export const api = {
   },
 
   listAuthorNovelMemories(token: string, novelId: string) {
-    return request<import('./types').NovelMemory[]>(`/author/novels/${novelId}/memories`, { token });
+    return request<import('./types').NovelMemory[]>(`/author/novels/${novelId}/memories`, {
+      token,
+    });
+  },
+
+  extractAuthorNovelMemoryDrafts(
+    token: string,
+    novelId: string,
+    payload: {
+      title: string;
+      content: string;
+      sourceChapterId?: string;
+      beforeChapterOrder?: number;
+    },
+  ) {
+    return request<import('./types').AuthorMemoryExtractionResult>(
+      `/author/novels/${novelId}/memories/extract`,
+      {
+        method: 'POST',
+        token,
+        body: JSON.stringify(payload),
+      },
+    );
   },
 
   createAuthorNovelMemory(
