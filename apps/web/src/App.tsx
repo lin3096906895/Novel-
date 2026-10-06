@@ -27,8 +27,9 @@ import { SettingsPage } from './pages/SettingsPage';
 function App() {
   const { user, isAuthenticated, logout } = useAuth();
   const location = useLocation();
-  const authorPortalUrl = import.meta.env.VITE_AUTHOR_APP_URL ?? 'http://localhost:5302';
-  const adminPortalUrl = import.meta.env.VITE_ADMIN_APP_URL ?? 'http://localhost:5301';
+  const portalOrigin = `${window.location.protocol}//${window.location.hostname}`;
+  const authorPortalUrl = import.meta.env.VITE_AUTHOR_APP_URL ?? `${portalOrigin}:5302`;
+  const adminPortalUrl = import.meta.env.VITE_ADMIN_APP_URL ?? `${portalOrigin}:5301`;
   const isReaderRoute = location.pathname.startsWith('/chapters/');
   const contentRef = useRef<HTMLElement>(null);
   const previousPathRef = useRef(location.pathname);

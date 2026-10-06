@@ -4,7 +4,8 @@ import { useAuth } from '../../web/src/auth/AuthContext';
 import { AuthorPage } from '../../web/src/pages/AuthorPage';
 import { LoginPage } from '../../web/src/pages/LoginPage';
 
-const readerPortalUrl = import.meta.env.VITE_READER_APP_URL ?? 'http://localhost:5300';
+const portalOrigin = `${window.location.protocol}//${window.location.hostname}`;
+const readerPortalUrl = import.meta.env.VITE_READER_APP_URL ?? `${portalOrigin}:5300`;
 
 function App() {
   const { user, isAuthenticated, logout } = useAuth();

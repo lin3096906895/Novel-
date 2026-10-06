@@ -72,7 +72,8 @@ import { ContentAppealsPanel } from '../components/ContentAppealsPanel';
 
 const writerRoles = new Set(['AUTHOR']);
 const coverTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const readerPortalUrl = import.meta.env.VITE_READER_APP_URL ?? 'http://localhost:5300';
+const portalOrigin = `${window.location.protocol}//${window.location.hostname}`;
+const readerPortalUrl = import.meta.env.VITE_READER_APP_URL ?? `${portalOrigin}:5300`;
 
 type NovelPayload = {
   title: string;
@@ -392,7 +393,7 @@ export function AuthorPage() {
       <AuthorState title="管理员请使用管理后台">
         <a
           className="primary-link"
-          href={import.meta.env.VITE_ADMIN_APP_URL ?? 'http://localhost:5301'}
+          href={import.meta.env.VITE_ADMIN_APP_URL ?? `${portalOrigin}:5301`}
         >
           进入管理后台
         </a>

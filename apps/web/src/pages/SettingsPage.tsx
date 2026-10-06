@@ -1886,11 +1886,15 @@ export function SettingsPage() {
           </div>
           <div>
             <dt>用户端</dt>
-            <dd>http://localhost:5300</dd>
+            <dd>{`${window.location.protocol}//${window.location.hostname}`}</dd>
+          </div>
+          <div>
+            <dt>作者端</dt>
+            <dd>{`${window.location.protocol}//${window.location.hostname}:5302`}</dd>
           </div>
           <div>
             <dt>管理端</dt>
-            <dd>http://localhost:5301</dd>
+            <dd>{`${window.location.protocol}//${window.location.hostname}:5301`}</dd>
           </div>
         </dl>
       </section>}
