@@ -72,11 +72,12 @@ import type {
 import { useAuth } from '../auth/AuthContext';
 import { NovelCover } from '../components/NovelCover';
 import { ContentAppealsPanel } from '../components/ContentAppealsPanel';
+import { resolveAdminAppUrl, resolveReaderAppUrl } from '../utils/portalUrls';
 
 const writerRoles = new Set(['AUTHOR']);
 const coverTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const portalOrigin = `${window.location.protocol}//${window.location.hostname}`;
-const readerPortalUrl = import.meta.env.VITE_READER_APP_URL ?? `${portalOrigin}:5300`;
+const readerPortalUrl = resolveReaderAppUrl();
+const adminPortalUrl = resolveAdminAppUrl();
 
 type NovelPayload = {
   title: string;
@@ -396,7 +397,7 @@ export function AuthorPage() {
       <AuthorState title="管理员请使用管理后台">
         <a
           className="primary-link"
-          href={import.meta.env.VITE_ADMIN_APP_URL ?? `${portalOrigin}:5301`}
+          href={adminPortalUrl}
         >
           进入管理后台
         </a>

@@ -23,13 +23,13 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { RankingPage } from './pages/RankingPage';
 import { ReaderPage } from './pages/ReaderPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { resolveAdminAppUrl, resolveAuthorAppUrl } from './utils/portalUrls';
 
 function App() {
   const { user, isAuthenticated, logout } = useAuth();
   const location = useLocation();
-  const portalOrigin = `${window.location.protocol}//${window.location.hostname}`;
-  const authorPortalUrl = import.meta.env.VITE_AUTHOR_APP_URL ?? `${portalOrigin}:5302`;
-  const adminPortalUrl = import.meta.env.VITE_ADMIN_APP_URL ?? `${portalOrigin}:5301`;
+  const authorPortalUrl = resolveAuthorAppUrl();
+  const adminPortalUrl = resolveAdminAppUrl();
   const isReaderRoute = location.pathname.startsWith('/chapters/');
   const contentRef = useRef<HTMLElement>(null);
   const previousPathRef = useRef(location.pathname);

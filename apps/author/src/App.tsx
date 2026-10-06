@@ -3,9 +3,9 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '../../web/src/auth/AuthContext';
 import { AuthorPage } from '../../web/src/pages/AuthorPage';
 import { LoginPage } from '../../web/src/pages/LoginPage';
+import { resolveReaderAppUrl } from '../../web/src/utils/portalUrls';
 
-const portalOrigin = `${window.location.protocol}//${window.location.hostname}`;
-const readerPortalUrl = import.meta.env.VITE_READER_APP_URL ?? `${portalOrigin}:5300`;
+const readerPortalUrl = resolveReaderAppUrl();
 
 function App() {
   const { user, isAuthenticated, logout } = useAuth();
