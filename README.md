@@ -298,6 +298,23 @@ TWO_FACTOR_RECOVERY_SECRET=replace_me_in_real_projects
 
 本地开发默认将验证码输出到 API 控制台，并在接口响应中返回本地验证码；生产环境不会返回验证码。
 
+AI 助手（用户自带 API Key）：
+
+阅读端「阅界 AI」与作者端「AI 创作助手」不再使用站点统一的模型密钥，而是由每位用户提供自己的 API Key（BYOK）。Key 只保存在用户自己的浏览器 `localStorage`，随请求头临时传给后端，服务端不落库、不写日志。
+
+- 用户入口：阅读端 AI 面板右上角的钥匙按钮、作者端「AI 设置」，或「设置 → AI 助手」。
+- 未配置 Key 时 AI 接口直接返回“尚未配置”，不会消耗站点额度。
+- 默认服务商为 DeepSeek，同时兼容任意 [OI] 格式服务商（硅基流动、通义、Kimi、智谱等）。
+- 为防止 SSRF，用户填写的接口地址必须为 https 且命中服务端白名单，可用 `AI_ALLOWED_PROVIDER_HOSTS`（逗号分隔）追加允许的域名。
+
+```env
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-flash
+AI_ALLOWED_PROVIDER_HOSTS=
+```
+
+`DEEPSEEK_API_KEY` 已不再被服务端读取。
+
 章节删除和重排仅允许操作草稿或已驳回章节；审核中、待定时发布和已发布章节保持锁定。
 
 ## 后续功能优先级

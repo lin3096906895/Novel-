@@ -10,10 +10,10 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ChapterStatus, NovelStatus } from '@prisma/client';
-import { ConfigService } from '@nestjs/config';
 import { RequestUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthorRagService } from '../author/author-rag.service';
+import { AiProviderCredentials } from '../ai/ai-provider';
 import { ReaderAiAction, ReaderAiDto } from './dto/reader-ai.dto';
 
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
@@ -33,11 +33,15 @@ export class ReaderAiService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
     private readonly ragService: AuthorRagService,
   ) {}
 
-  async ask(user: RequestUser, novelId: string, dto: ReaderAiDto) {
+  async ask(
+    user: RequestUser,
+    novelId: string,
+    dto: ReaderAiDto,
+    credentials: AiProviderCredentials,
+  ) {
     const chapter = await this.findReadableChapter(novelId, dto.chapterId);
     const question = dto.question?.trim() ?? '';
 
@@ -45,14 +49,14 @@ export class ReaderAiService {
       throw new BadRequestException('请输入想问的问题');
     }
 
-    this.assertWithinRateLimit(user.id);
-
-    const apiKey = this.configService.get<string>('DEEPSEEK_API_KEY')?.trim();
+    const apiKey = credentials.apiKey.trim();
     if (!apiKey) {
       throw new ServiceUnavailableException(
-        'AI 助手尚未配置，请联系管理员设置 DEEPSEEK_API_KEY。',
+        '尚未配置 AI API Key。请在“设置 → AI 助手”中填写你自己的 API Key 后再使用。',
       );
     }
+
+    this.assertWithinRateLimit(user.id);
 
     const maxChapterOrder =
       dto.action === 'recall' ? Math.max(chapter.orderIndex - 1, 0) : chapter.orderIndex;
@@ -72,12 +76,8 @@ export class ReaderAiService {
       );
     }
 
-    const baseUrl = (
-      this.configService.get<string>('DEEPSEEK_BASE_URL') ?? 'https://api.deepseek.com'
-    )
-      .trim()
-      .replace(/\/+$/, '');
-    const model = this.configService.get<string>('DEEPSEEK_MODEL')?.trim() || 'deepseek-v4-flash';
+    const baseUrl = credentials.baseUrl;
+    const model = credentials.model;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
 
@@ -121,7 +121,9 @@ export class ReaderAiService {
           `Reader AI provider returned HTTP ${response.status}: ${providerErrorMessage}`,
         );
         if (response.status === 401 || response.status === 403) {
-          throw new ServiceUnavailableException('AI 服务凭证无效，请联系管理员检查配置。');
+          throw new ServiceUnavailableException(
+            '你的 AI API Key 无效或已过期，请在“设置 → AI 助手”中重新填写。',
+          );
         }
         if (response.status === 429) {
           throw new HttpException('AI 服务繁忙，请稍后再试。', HttpStatus.TOO_MANY_REQUESTS);

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { AiProviderModule } from '../ai/ai-provider.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { AuthorOnboardingController } from './author-onboarding.controller';
 import { AuthorOnboardingService } from './author-onboarding.service';
@@ -13,7 +14,7 @@ import { AuthorRagService } from './author-rag.service';
 import { AuthorService } from './author.service';
 
 @Module({
-  imports: [AuthModule, UploadsModule],
+  imports: [AuthModule, AiProviderModule, UploadsModule],
   controllers: [AuthorController, AuthorOnboardingController],
   providers: [
     AuthorService,

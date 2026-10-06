@@ -14,6 +14,7 @@ import {
   Flag,
   Heart,
   Highlighter,
+  KeyRound,
   List,
   MessageCircle,
   MessageSquareText,
@@ -31,6 +32,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../api/client';
+import { hasAiApiKey } from '../ai/aiCredentials';
 import type {
   AnnotationColor,
   Chapter,
@@ -49,6 +51,7 @@ import type {
   ReadingTheme,
 } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
+import { AiCredentialsPanel } from '../components/AiCredentialsPanel';
 import { CommentReportForm } from '../components/CommentReportForm';
 import type { CommentReportTarget } from '../components/CommentReportForm';
 import { ContentReportForm } from '../components/ContentReportForm';
@@ -119,6 +122,7 @@ export function ReaderPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [isAiOpen, setIsAiOpen] = useState(false);
+  const [isAiConfigOpen, setIsAiConfigOpen] = useState(false);
   const [aiQuestion, setAiQuestion] = useState('');
   const [aiMessages, setAiMessages] = useState<ReaderAiMessage[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -985,6 +989,18 @@ export function ReaderPage() {
     if (!token) {
       setMessage('登录后即可使用阅界 AI 助手');
       setIsAiOpen(true);
+      return;
+    }
+    if (!hasAiApiKey()) {
+      setAiMessages((current) => [
+        ...current,
+        {
+          id: `error-${Date.now()}`,
+          role: 'error',
+          text: '请先配置你自己的 AI API Key，再使用阅界 AI 助手。',
+        },
+      ]);
+      setIsAiConfigOpen(true);
       return;
     }
 
@@ -2091,16 +2107,34 @@ export function ReaderPage() {
                 </span>
                 <h2 id="reader-ai-title">读到哪里，问到哪里</h2>
               </div>
-              <button
-                className="icon-button"
-                type="button"
-                onClick={() => closeAi()}
-                aria-label="关闭阅界 AI 助手"
-                title="关闭"
-              >
-                <X size={18} aria-hidden />
-              </button>
+              <div className="reader-ai-header-actions">
+                <button
+                  className={isAiConfigOpen ? 'icon-button active' : 'icon-button'}
+                  type="button"
+                  onClick={() => setIsAiConfigOpen((current) => !current)}
+                  aria-expanded={isAiConfigOpen}
+                  aria-label="AI API Key 设置"
+                  title="AI API Key 设置"
+                >
+                  <KeyRound size={18} aria-hidden />
+                </button>
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => closeAi()}
+                  aria-label="关闭阅界 AI 助手"
+                  title="关闭"
+                >
+                  <X size={18} aria-hidden />
+                </button>
+              </div>
             </header>
+
+            {isAiConfigOpen && (
+              <div className="reader-ai-config">
+                <AiCredentialsPanel variant="inline" onSaved={() => setIsAiConfigOpen(false)} />
+              </div>
+            )}
 
             <div className="reader-ai-context">
               <BookOpenCheck size={16} aria-hidden />
@@ -2117,6 +2151,16 @@ export function ReaderPage() {
                 </div>
                 <strong>你的专属伴读</strong>
                 <p>我会结合当前章节与前文知识库回答，不提前透露后续剧情。</p>
+                {!hasAiApiKey() && (
+                  <button
+                    className="reader-ai-config-link"
+                    type="button"
+                    onClick={() => setIsAiConfigOpen(true)}
+                  >
+                    <KeyRound size={14} aria-hidden />
+                    先配置你的 AI API Key
+                  </button>
+                )}
               </div>
             )}
 

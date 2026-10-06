@@ -10,10 +10,10 @@ import {
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { NovelMemoryType, UserRole } from '@prisma/client';
 import { RequestUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { AiProviderCredentials } from '../ai/ai-provider';
 import { AuthorAiAction, AuthorAiAssistanceDto } from './dto/author-ai-assistance.dto';
 import { ExtractNovelMemoryDto } from './dto/extract-novel-memory.dto';
 import { AuthorRagService } from './author-rag.service';
@@ -73,29 +73,42 @@ export class AuthorAiService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
     @Optional() private readonly ragService?: AuthorRagService,
   ) {}
 
-  async assistChapter(user: RequestUser, chapterId: string, dto: AuthorAiAssistanceDto) {
+  async assistChapter(
+    user: RequestUser,
+    chapterId: string,
+    dto: AuthorAiAssistanceDto,
+    credentials: AiProviderCredentials,
+  ) {
     const chapter = await this.assertChapterAccess(user, chapterId);
-    return this.generateAssistance(user, dto, {
+    return this.generateAssistance(user, dto, credentials, {
       novelId: chapter.novelId,
       // Keep author continuity checks spoiler-safe by retrieving only earlier chapters.
       maxChapterOrder: Math.max((chapter.orderIndex ?? 1) - 1, 0),
     });
   }
 
-  async assistDraft(user: RequestUser, dto: AuthorAiAssistanceDto) {
+  async assistDraft(
+    user: RequestUser,
+    dto: AuthorAiAssistanceDto,
+    credentials: AiProviderCredentials,
+  ) {
     const ragContext = await this.resolveDraftRagContext(user, dto);
-    return this.generateAssistance(user, dto, ragContext);
+    return this.generateAssistance(user, dto, credentials, ragContext);
   }
 
   /**
    * Extract candidate memories without persisting them. The author must
    * explicitly confirm each draft through the NovelMemory create endpoint.
    */
-  async extractMemoryDraft(user: RequestUser, novelId: string, dto: ExtractNovelMemoryDto) {
+  async extractMemoryDraft(
+    user: RequestUser,
+    novelId: string,
+    dto: ExtractNovelMemoryDto,
+    credentials: AiProviderCredentials,
+  ) {
     const novel = await this.prisma.novel.findUnique({
       where: { id: novelId },
       select: { authorId: true },
@@ -116,10 +129,10 @@ export class AuthorAiService {
       }
     }
 
-    const apiKey = this.configService.get<string>('DEEPSEEK_API_KEY')?.trim();
+    const apiKey = credentials.apiKey.trim();
     if (!apiKey) {
       throw new ServiceUnavailableException(
-        'AI assistant is not configured. Ask an administrator to set DEEPSEEK_API_KEY.',
+        '尚未配置 AI API Key。请先填写你自己的 API Key 后再使用。',
       );
     }
     this.assertWithinRateLimit(user.id);
@@ -142,12 +155,8 @@ export class AuthorAiService {
       }
     }
     const memoryItems = await this.loadConfirmedMemories(novelId, maxChapterOrder);
-    const baseUrl = (
-      this.configService.get<string>('DEEPSEEK_BASE_URL') ?? 'https://api.deepseek.com'
-    )
-      .trim()
-      .replace(/\/+$/, '');
-    const model = this.configService.get<string>('DEEPSEEK_MODEL')?.trim() || 'deepseek-v4-flash';
+    const baseUrl = credentials.baseUrl;
+    const model = credentials.model;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
 
@@ -193,7 +202,7 @@ export class AuthorAiService {
         );
         if (response.status === 401 || response.status === 403) {
           throw new ServiceUnavailableException(
-            'The AI provider rejected the configured credentials. Check DEEPSEEK_API_KEY.',
+            '你的 AI API Key 无效或已过期，请重新填写后再试。',
           );
         }
         if (response.status === 429) {
@@ -241,12 +250,13 @@ export class AuthorAiService {
   private async generateAssistance(
     user: RequestUser,
     dto: AuthorAiAssistanceDto,
+    credentials: AiProviderCredentials,
     ragContext?: { novelId: string; maxChapterOrder: number },
   ) {
-    const apiKey = this.configService.get<string>('DEEPSEEK_API_KEY')?.trim();
+    const apiKey = credentials.apiKey.trim();
     if (!apiKey) {
       throw new ServiceUnavailableException(
-        'AI assistant is not configured. Ask an administrator to set DEEPSEEK_API_KEY.',
+        '尚未配置 AI API Key。请先填写你自己的 API Key 后再使用。',
       );
     }
     this.assertWithinRateLimit(user.id);
@@ -271,12 +281,8 @@ export class AuthorAiService {
       }
     }
 
-    const baseUrl = (
-      this.configService.get<string>('DEEPSEEK_BASE_URL') ?? 'https://api.deepseek.com'
-    )
-      .trim()
-      .replace(/\/+$/, '');
-    const model = this.configService.get<string>('DEEPSEEK_MODEL')?.trim() || 'deepseek-v4-flash';
+    const baseUrl = credentials.baseUrl;
+    const model = credentials.model;
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
@@ -326,7 +332,7 @@ export class AuthorAiService {
         );
         if (response.status === 401 || response.status === 403) {
           throw new ServiceUnavailableException(
-            'The AI provider rejected the configured credentials. Check DEEPSEEK_API_KEY.',
+            '你的 AI API Key 无效或已过期，请重新填写后再试。',
           );
         }
         if (response.status === 429) {

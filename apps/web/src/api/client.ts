@@ -82,6 +82,8 @@ import type {
   TwoFactorStatus,
 } from './types';
 
+import { aiRequestHeaders } from '../ai/aiCredentials';
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
 export class ApiError extends Error {
@@ -93,12 +95,17 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit & { token?: string }): Promise<T> {
-  const { token, headers, ...requestInit } = init ?? {};
+async function request<T>(
+  path: string,
+  init?: RequestInit & { token?: string; aiAuth?: boolean },
+): Promise<T> {
+  const { token, headers, aiAuth, ...requestInit } = init ?? {};
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      // AI 接口使用用户自带的凭据（BYOK），凭据只存在浏览器里。
+      ...(aiAuth ? aiRequestHeaders() : {}),
       ...headers,
     },
     ...requestInit,
@@ -697,6 +704,7 @@ export const api = {
       {
         method: 'POST',
         token,
+        aiAuth: true,
         body: JSON.stringify(payload),
       },
     );
@@ -784,6 +792,7 @@ export const api = {
     return request<import('./types').AuthorAiAssistanceResult>('/author/ai-assistance', {
       method: 'POST',
       token,
+      aiAuth: true,
       body: JSON.stringify(payload),
     });
   },
@@ -796,6 +805,7 @@ export const api = {
     return request<ReaderAiAssistanceResult>(`/novels/${novelId}/reader-ai/ask`, {
       method: 'POST',
       token,
+      aiAuth: true,
       body: JSON.stringify(payload),
     });
   },
@@ -845,6 +855,7 @@ export const api = {
       {
         method: 'POST',
         token,
+        aiAuth: true,
         body: JSON.stringify(payload),
       },
     );

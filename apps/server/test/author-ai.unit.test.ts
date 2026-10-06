@@ -2,6 +2,7 @@ import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common'
 import { UserRole } from '@prisma/client';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { AiProviderCredentials } from '../src/modules/ai/ai-provider';
 import { AuthorAiService } from '../src/modules/author/author-ai.service';
 import { AuthorAiAssistanceDto } from '../src/modules/author/dto/author-ai-assistance.dto';
 
@@ -12,9 +13,15 @@ const author = {
   sessionId: 'session_1',
 };
 
+// 作者端现在使用作者自带的凭据，不再读取服务端 DEEPSEEK_API_KEY。
+const credentials: AiProviderCredentials = {
+  apiKey: 'test-key',
+  baseUrl: 'https://api.deepseek.com',
+  model: 'deepseek-v4-flash',
+};
+
 function createService(
   authorId = author.id,
-  apiKey = 'test-key',
   ragService?: {
     retrieve(input: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
   },
@@ -31,9 +38,6 @@ function createService(
       novel: {
         findUnique: async () => ({ authorId, chapters: [{ orderIndex: 100 }] }),
       },
-    } as never,
-    {
-      get: (name: string) => (name === 'DEEPSEEK_API_KEY' ? apiKey : undefined),
     } as never,
     ragService as never,
   );
@@ -60,7 +64,7 @@ describe('AuthorAiService', () => {
     }) as typeof fetch;
 
     try {
-      const result = await createService().assistChapter(author, 'chapter_1', dto);
+      const result = await createService().assistChapter(author, 'chapter_1', dto, credentials);
       assert.deepEqual(result, {
         action: 'summary',
         content: 'AI suggestion',
@@ -76,7 +80,7 @@ describe('AuthorAiService', () => {
 
   it('rejects a chapter owned by another author before calling the provider', async () => {
     await assert.rejects(
-      () => createService('another_author').assistChapter(author, 'chapter_1', dto),
+      () => createService('another_author').assistChapter(author, 'chapter_1', dto, credentials),
       ForbiddenException,
     );
   });
@@ -93,12 +97,16 @@ describe('AuthorAiService', () => {
     }) as typeof fetch;
 
     try {
-      const result = await createService().assistDraft(author, {
-        action: 'research',
-        title: '未命名章节',
-        content: '这是一段足够长的创作思路，用于测试新章节保存前也可以调用 AI 辅助。',
-        query: '古代客栈如何称呼掌柜？',
-      });
+      const result = await createService().assistDraft(
+        author,
+        {
+          action: 'research',
+          title: '未命名章节',
+          content: '这是一段足够长的创作思路，用于测试新章节保存前也可以调用 AI 辅助。',
+          query: '古代客栈如何称呼掌柜？',
+        },
+        credentials,
+      );
       assert.equal(result.action, 'research');
       assert.match(requestBody, /Author question:/);
       assert.match(requestBody, /do not claim live web access/);
@@ -120,7 +128,7 @@ describe('AuthorAiService', () => {
     }) as typeof fetch;
 
     try {
-      const result = await createService(author.id, 'test-key', {
+      const result = await createService(author.id, {
         retrieve: async (input) => {
           retrieveInput = input;
           return [
@@ -136,13 +144,17 @@ describe('AuthorAiService', () => {
             },
           ];
         },
-      }).assistDraft(author, {
-        action: 'consistency',
-        title: '第一百零一章 故人重逢',
-        content: '王凌回到山门，众人都认出他就是当年参加仙门考核的少年。',
-        novelId: 'novel_1',
-        beforeChapterOrder: 100,
-      });
+      }).assistDraft(
+        author,
+        {
+          action: 'consistency',
+          title: '第一百零一章 故人重逢',
+          content: '王凌回到山门，众人都认出他就是当年参加仙门考核的少年。',
+          novelId: 'novel_1',
+          beforeChapterOrder: 100,
+        },
+        credentials,
+      );
 
       assert.equal(retrieveInput?.novelId, 'novel_1');
       assert.equal(retrieveInput?.maxChapterOrder, 100);
@@ -180,40 +192,41 @@ describe('AuthorAiService', () => {
     }) as typeof fetch;
 
     try {
-      const service = new AuthorAiService(
-        {
-          chapter: {
-            findUnique: async () => ({
-              novelId: 'novel_1',
-              orderIndex: 12,
-              novel: { authorId: author.id },
-            }),
-          },
-          novel: {
-            findUnique: async () => ({ authorId: author.id, chapters: [{ orderIndex: 12 }] }),
-          },
-          novelMemory: {
-            findMany: async () => [
-              {
-                id: 'memory_1',
-                type: 'CHARACTER',
-                title: '王耀',
-                content: '主角，擅长推演气运。',
-                sourceChapterId: 'chapter_1',
-                sourceChapter: { orderIndex: 1, title: '第一章' },
-              },
-            ],
-          },
-        } as never,
-        { get: (name: string) => (name === 'DEEPSEEK_API_KEY' ? 'test-key' : undefined) } as never,
-      );
+      const service = new AuthorAiService({
+        chapter: {
+          findUnique: async () => ({
+            novelId: 'novel_1',
+            orderIndex: 12,
+            novel: { authorId: author.id },
+          }),
+        },
+        novel: {
+          findUnique: async () => ({ authorId: author.id, chapters: [{ orderIndex: 12 }] }),
+        },
+        novelMemory: {
+          findMany: async () => [
+            {
+              id: 'memory_1',
+              type: 'CHARACTER',
+              title: '王耀',
+              content: '主角，擅长推演气运。',
+              sourceChapterId: 'chapter_1',
+              sourceChapter: { orderIndex: 1, title: '第一章' },
+            },
+          ],
+        },
+      } as never);
 
-      const result = await service.assistDraft(author, {
-        ...dto,
-        action: 'consistency',
-        novelId: 'novel_1',
-        beforeChapterOrder: 12,
-      });
+      const result = await service.assistDraft(
+        author,
+        {
+          ...dto,
+          action: 'consistency',
+          novelId: 'novel_1',
+          beforeChapterOrder: 12,
+        },
+        credentials,
+      );
       assert.match(requestBody, /已确认的作品结构化设定/);
       assert.match(requestBody, /王耀/);
       assert.deepEqual(result.memorySources, [
@@ -246,18 +259,20 @@ describe('AuthorAiService', () => {
     })) as typeof fetch;
 
     try {
-      const service = new AuthorAiService(
+      const service = new AuthorAiService({
+        novel: { findUnique: async () => ({ authorId: author.id }) },
+        chapter: { findFirst: async () => ({ id: 'chapter_1' }) },
+      } as never);
+      const result = await service.extractMemoryDraft(
+        author,
+        'novel_1',
         {
-          novel: { findUnique: async () => ({ authorId: author.id }) },
-          chapter: { findFirst: async () => ({ id: 'chapter_1' }) },
-        } as never,
-        { get: (name: string) => (name === 'DEEPSEEK_API_KEY' ? 'test-key' : undefined) } as never,
+          title: '第一章',
+          content: '王耀抬手推演气运，发现山门上空有异象。',
+          sourceChapterId: 'chapter_1',
+        },
+        credentials,
       );
-      const result = await service.extractMemoryDraft(author, 'novel_1', {
-        title: '第一章',
-        content: '王耀抬手推演气运，发现山门上空有异象。',
-        sourceChapterId: 'chapter_1',
-      });
       assert.equal(result.drafts.length, 1);
       assert.equal(result.drafts[0].type, 'CHARACTER');
       assert.equal(result.drafts[0].title, '王耀');
@@ -302,12 +317,16 @@ describe('AuthorAiService', () => {
     }) as typeof fetch;
 
     try {
-      const result = await createService().assistDraft(author, {
-        ...dto,
-        action: 'consistency',
-        novelId: 'novel_1',
-        beforeChapterOrder: 12,
-      });
+      const result = await createService().assistDraft(
+        author,
+        {
+          ...dto,
+          action: 'consistency',
+          novelId: 'novel_1',
+          beforeChapterOrder: 12,
+        },
+        credentials,
+      );
 
       assert.equal(result.content, '发现一处人物能力设定冲突。');
       assert.equal(result.consistencyReport?.verdict, 'ISSUES_FOUND');
@@ -328,12 +347,16 @@ describe('AuthorAiService', () => {
     })) as typeof fetch;
 
     try {
-      const result = await createService().assistDraft(author, {
-        ...dto,
-        action: 'consistency',
-        novelId: 'novel_1',
-        beforeChapterOrder: 12,
-      });
+      const result = await createService().assistDraft(
+        author,
+        {
+          ...dto,
+          action: 'consistency',
+          novelId: 'novel_1',
+          beforeChapterOrder: 12,
+        },
+        credentials,
+      );
 
       assert.equal(result.content, '未发现明显冲突。');
       assert.equal(result.consistencyReport, undefined);
@@ -342,9 +365,13 @@ describe('AuthorAiService', () => {
     }
   });
 
-  it('requires a server-side provider key', async () => {
+  it('requires the author to provide their own provider key', async () => {
     await assert.rejects(
-      () => createService(author.id, '').assistChapter(author, 'chapter_1', dto),
+      () =>
+        createService().assistChapter(author, 'chapter_1', dto, {
+          ...credentials,
+          apiKey: '',
+        }),
       ServiceUnavailableException,
     );
   });

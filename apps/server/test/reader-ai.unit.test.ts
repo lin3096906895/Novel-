@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException, ServiceUnavailableException } f
 import { UserRole } from '@prisma/client';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { AiProviderCredentials } from '../src/modules/ai/ai-provider';
 import { ReaderAiService } from '../src/modules/reader-ai/reader-ai.service';
 import { ReaderAiDto } from '../src/modules/reader-ai/dto/reader-ai.dto';
 
@@ -12,6 +13,13 @@ const reader = {
   sessionId: 'session_1',
 };
 
+// 阅读端现在使用读者自带的凭据，不再读取服务端 DEEPSEEK_API_KEY。
+const credentials: AiProviderCredentials = {
+  apiKey: 'test-key',
+  baseUrl: 'https://api.deepseek.com',
+  model: 'test-reader-model',
+};
+
 function createService(
   chapter: Record<string, unknown> | null = {
     id: 'chapter_11',
@@ -19,20 +27,12 @@ function createService(
     content: '韩清在雨夜回到山门，发现石阶上留着一枚陌生玉佩。',
     orderIndex: 11,
   },
-  apiKey = 'test-key',
   ragService: { retrieve(input: Record<string, unknown>): Promise<Array<Record<string, unknown>>> } = {
     retrieve: async () => [],
   },
 ) {
   return new ReaderAiService(
     { chapter: { findFirst: async () => chapter ?? undefined } } as never,
-    {
-      get: (name: string) => {
-        if (name === 'DEEPSEEK_API_KEY') return apiKey;
-        if (name === 'DEEPSEEK_MODEL') return 'test-reader-model';
-        return undefined;
-      },
-    } as never,
     ragService as never,
   );
 }
@@ -51,7 +51,7 @@ describe('ReaderAiService', () => {
     }) as typeof fetch;
 
     try {
-      const result = await createService(undefined, 'test-key', {
+      const result = await createService(undefined, {
         retrieve: async (input) => {
           retrieveInput = input;
           return [
@@ -64,15 +64,21 @@ describe('ReaderAiService', () => {
             },
           ];
         },
-      }).ask(reader, 'novel_1', {
-        action: 'recall',
-        chapterId: 'chapter_11',
-        spoilerMode: 'safe',
-      });
+      }).ask(
+        reader,
+        'novel_1',
+        {
+          action: 'recall',
+          chapterId: 'chapter_11',
+          spoilerMode: 'safe',
+        },
+        credentials,
+      );
 
       assert.equal(retrieveInput?.novelId, 'novel_1');
       assert.equal(retrieveInput?.maxChapterOrder, 10);
       assert.equal(result.answer, '前文回顾：主角曾在山门参加考核。');
+      assert.equal(result.model, 'test-reader-model');
       assert.deepEqual(result.sources, [
         {
           chapterId: 'chapter_4',
@@ -92,30 +98,47 @@ describe('ReaderAiService', () => {
   it('rejects an empty question for direct reader questions', async () => {
     await assert.rejects(
       () =>
-        createService().ask(reader, 'novel_1', {
-          action: 'ask',
-          chapterId: 'chapter_11',
-        } as ReaderAiDto),
+        createService().ask(
+          reader,
+          'novel_1',
+          {
+            action: 'ask',
+            chapterId: 'chapter_11',
+          } as ReaderAiDto,
+          credentials,
+        ),
       BadRequestException,
     );
   });
 
   it('does not allow a chapter from another novel', async () => {
     await assert.rejects(
-      () => createService(null).ask(reader, 'another_novel', {
-        action: 'summary',
-        chapterId: 'chapter_11',
-      }),
+      () =>
+        createService(null).ask(
+          reader,
+          'another_novel',
+          {
+            action: 'summary',
+            chapterId: 'chapter_11',
+          },
+          credentials,
+        ),
       NotFoundException,
     );
   });
 
-  it('requires a server-side provider key', async () => {
+  it('requires the reader to provide their own provider key', async () => {
     await assert.rejects(
-      () => createService(undefined, '').ask(reader, 'novel_1', {
-        action: 'summary',
-        chapterId: 'chapter_11',
-      }),
+      () =>
+        createService().ask(
+          reader,
+          'novel_1',
+          {
+            action: 'summary',
+            chapterId: 'chapter_11',
+          },
+          { ...credentials, apiKey: '   ' },
+        ),
       ServiceUnavailableException,
     );
   });

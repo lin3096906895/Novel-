@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   Patch,
   Post,
@@ -16,6 +17,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { RequestUser } from '../auth/auth.types';
+import { AiHeaderBag } from '../ai/ai-provider';
+import { AiProviderService } from '../ai/ai-provider.service';
 import { AuthorAnnouncementsService } from './author-announcements.service';
 import { AuthorAiService } from './author-ai.service';
 import { AuthorCalendarService } from './author-calendar.service';
@@ -60,6 +63,7 @@ export class AuthorController {
     private readonly calendarService: AuthorCalendarService,
     private readonly collectionService: AuthorCollectionService,
     private readonly memoryService: AuthorMemoryService,
+    private readonly aiProviderService: AiProviderService,
   ) {}
 
   @Post('collection-tasks/preview')
@@ -194,8 +198,14 @@ export class AuthorController {
     @CurrentUser() user: RequestUser,
     @Param('novelId') novelId: string,
     @Body() dto: ExtractNovelMemoryDto,
+    @Headers() headers: AiHeaderBag,
   ) {
-    const extraction = await this.authorAiService.extractMemoryDraft(user, novelId, dto);
+    const extraction = await this.authorAiService.extractMemoryDraft(
+      user,
+      novelId,
+      dto,
+      this.aiProviderService.fromHeaders(headers),
+    );
     return {
       code: 0,
       message: 'AI 设定草稿已生成',
@@ -456,11 +466,17 @@ export class AuthorController {
     @CurrentUser() user: RequestUser,
     @Param('chapterId') chapterId: string,
     @Body() dto: AuthorAiAssistanceDto,
+    @Headers() headers: AiHeaderBag,
   ) {
     return {
       code: 0,
       message: 'AI assistance generated',
-      data: await this.authorAiService.assistChapter(user, chapterId, dto),
+      data: await this.authorAiService.assistChapter(
+        user,
+        chapterId,
+        dto,
+        this.aiProviderService.fromHeaders(headers),
+      ),
     };
   }
 
@@ -492,11 +508,19 @@ export class AuthorController {
   }
 
   @Post('ai-assistance')
-  async assistDraftWithAi(@CurrentUser() user: RequestUser, @Body() dto: AuthorAiAssistanceDto) {
+  async assistDraftWithAi(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: AuthorAiAssistanceDto,
+    @Headers() headers: AiHeaderBag,
+  ) {
     return {
       code: 0,
       message: 'AI assistance generated',
-      data: await this.authorAiService.assistDraft(user, dto),
+      data: await this.authorAiService.assistDraft(
+        user,
+        dto,
+        this.aiProviderService.fromHeaders(headers),
+      ),
     };
   }
 

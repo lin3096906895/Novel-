@@ -36,14 +36,16 @@ import type {
   TwoFactorStatus,
 } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
+import { AiCredentialsPanel } from '../components/AiCredentialsPanel';
 import { formatReadingDuration } from '../utils/format';
 
-type SettingsWorkspaceView = 'account' | 'reading' | 'data' | 'local';
+type SettingsWorkspaceView = 'account' | 'reading' | 'ai' | 'data' | 'local';
 type AccountSettingsView = 'profile' | 'security' | 'devices' | 'activity';
 
 const settingsWorkspaceLabels: Record<SettingsWorkspaceView, string> = {
   account: '\u8d26\u6237',
   reading: '\u9605\u8bfb',
+  ai: 'AI \u52a9\u624b',
   data: '\u6570\u636e\u4e0e\u6ce8\u9500',
   local: '\u672c\u5730\u73af\u5883',
 };
@@ -1874,6 +1876,12 @@ export function SettingsPage() {
               </button>
             </div>
           )}
+        </section>
+      )}
+
+      {isAuthenticated && workspaceView === 'ai' && (
+        <section className="panel settings-panel">
+          <AiCredentialsPanel />
         </section>
       )}
 

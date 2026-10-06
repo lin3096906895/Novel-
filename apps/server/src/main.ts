@@ -20,6 +20,14 @@ async function bootstrap() {
   app.enableCors({
     origin: [webOrigin, authorOrigin, adminOrigin],
     credentials: true,
+    // 允许浏览器把用户自带的 AI 凭据放在请求头里传给后端（BYOK）。
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-AI-Api-Key',
+      'X-AI-Base-Url',
+      'X-AI-Model',
+    ],
   });
   app.useGlobalPipes(
     new ValidationPipe({

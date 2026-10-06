@@ -22,6 +22,7 @@ import {
   Globe2,
   History,
   ImagePlus,
+  KeyRound,
   Layers3,
   ListChecks,
   MessageCircle,
@@ -38,6 +39,8 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../api/client';
+import { hasAiApiKey } from '../ai/aiCredentials';
+import { AiCredentialsPanel } from '../components/AiCredentialsPanel';
 import type {
   AuthorApplication,
   AuthorAiAction,
@@ -4681,6 +4684,7 @@ function AuthorAiAssistant({
   const [ragSyncMessage, setRagSyncMessage] = useState<string>();
   const [ragError, setRagError] = useState<string>();
   const [resolvedConsistencyIssues, setResolvedConsistencyIssues] = useState<number[]>([]);
+  const [isAiConfigOpen, setIsAiConfigOpen] = useState(false);
 
   const primaryActions: Array<{
     action: AuthorAiAction;
@@ -4800,6 +4804,11 @@ function AuthorAiAssistant({
     if (!token) {
       return;
     }
+    if (!hasAiApiKey()) {
+      setError('请先配置你自己的 AI API Key，再使用 AI 创作助手。');
+      setIsAiConfigOpen(true);
+      return;
+    }
     if (action !== 'research' && content.trim().length < 20) {
       setError('请先准备至少 20 个字符的正文或创作思路。');
       return;
@@ -4858,7 +4867,21 @@ function AuthorAiAssistant({
           </span>
           <small>读取当前编辑区内容，但不会自动保存或发布。</small>
         </div>
+        <button
+          type="button"
+          className={isAiConfigOpen ? 'author-ai-config-toggle active' : 'author-ai-config-toggle'}
+          onClick={() => setIsAiConfigOpen((current) => !current)}
+          aria-expanded={isAiConfigOpen}
+        >
+          <KeyRound size={14} aria-hidden />
+          AI 设置
+        </button>
       </div>
+      {isAiConfigOpen && (
+        <div className="author-ai-config">
+          <AiCredentialsPanel variant="inline" onSaved={() => setIsAiConfigOpen(false)} />
+        </div>
+      )}
       {novelId && (
         <div className="author-ai-memory-status">
           <Database size={18} aria-hidden />
@@ -5225,6 +5248,7 @@ function NovelKnowledgeBasePanel({
   const [isDraftLoading, setIsDraftLoading] = useState(false);
   const [isDraftReviewing, setIsDraftReviewing] = useState(false);
   const [extractionError, setExtractionError] = useState('');
+  const [isAiConfigOpen, setIsAiConfigOpen] = useState(false);
   const [extractionMessage, setExtractionMessage] = useState('');
   const { token } = useAuth();
 
@@ -5358,6 +5382,11 @@ function NovelKnowledgeBasePanel({
 
   async function extractMemories() {
     if (!token || !extractChapterId || isExtracting) return;
+    if (!hasAiApiKey()) {
+      setExtractionError('请先配置你自己的 AI API Key，再使用 AI 设定提取。');
+      setIsAiConfigOpen(true);
+      return;
+    }
     const chapter = chapters.find((item) => item.id === extractChapterId);
     if (!chapter || chapter.content.trim().length < 20) {
       setExtractionError('所选章节正文不足 20 个字符，暂时无法提取。');
@@ -5503,8 +5532,21 @@ function NovelKnowledgeBasePanel({
             <h3>从章节提取设定草稿</h3>
             <p>AI 只负责整理人物、关系和伏笔；你确认后才会保存到作品知识库。</p>
           </div>
-          <Sparkles size={20} aria-hidden />
+          <button
+            type="button"
+            className={isAiConfigOpen ? 'author-ai-config-toggle active' : 'author-ai-config-toggle'}
+            onClick={() => setIsAiConfigOpen((current) => !current)}
+            aria-expanded={isAiConfigOpen}
+          >
+            <KeyRound size={14} aria-hidden />
+            AI 设置
+          </button>
         </div>
+        {isAiConfigOpen && (
+          <div className="author-ai-config">
+            <AiCredentialsPanel variant="inline" onSaved={() => setIsAiConfigOpen(false)} />
+          </div>
+        )}
         <div className="knowledge-base-extractor-controls">
           <select
             aria-label="选择要提取的章节"
